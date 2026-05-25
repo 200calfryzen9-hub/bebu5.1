@@ -105,6 +105,17 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
         URL.revokeObjectURL(url);
     };
 
+    const formatToWareki = (dateStr: string | undefined): string => {
+        if (!dateStr) return '';
+        try {
+            const date = new Date(dateStr);
+            if (isNaN(date.getTime())) return '';
+            return new Intl.DateTimeFormat('ja-JP-u-ca-japanese', { dateStyle: 'long' }).format(date);
+        } catch (e) {
+            return dateStr;
+        }
+    };
+
     // Export Cows Data as CSV
     const handleExportCowCsv = () => {
         let cowCsvContent = "耳標番号,名号,生年月日,父牛,母の父,種付け年月日,種付け種雄牛,分娩年月日,メモ内容\n";
@@ -117,12 +128,12 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
             const row = [
                 `"${cow.earTag || ''}"`,
                 `"${cow.name || ''}"`,
-                `"${cow.birthDate || ''}"`,
+                `"${formatToWareki(cow.birthDate)}"`,
                 `"${cow.fatherName || ''}"`,
                 `"${cow.motherFatherName || ''}"`,
-                `"${cow.lastInseminationDate || ''}"`,
+                `"${formatToWareki(cow.lastInseminationDate)}"`,
                 `"${bullName}"`,
-                `"${cow.lastCalvingDate || ''}"`,
+                `"${formatToWareki(cow.lastCalvingDate)}"`,
                 `"${notesText}"`
             ].join(",");
             cowCsvContent += row + "\n";
@@ -149,14 +160,27 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
         let calfCsvContent = "耳標番号,名号,生年月日,性別,母牛ID,父牛,せり月,体重,販売額,状態,メモ内容\n";
         calves.forEach(calf => {
             const notesText = (calf.notes || []).map(n => `[${n.isTodo ? (n.isDone ? '済' : '未') : 'メモ'}] ${n.text}`).join(' / ').replace(/"/g, '""');
+            
+            let formattedAuction = calf.auctionDate || '';
+            if (formattedAuction) {
+                try {
+                    const parts = formattedAuction.split('-');
+                    if (parts.length === 2) {
+                        const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1);
+                        const formatter = new Intl.DateTimeFormat('ja-JP-u-ca-japanese', { era: 'short', year: 'numeric', month: 'long' });
+                        formattedAuction = formatter.format(date).replace('年', '年 '); // Sometimes better format
+                    }
+                } catch(e) {}
+            }
+
             const row = [
                 `"${calf.earTag || ''}"`,
                 `"${calf.name || ''}"`,
-                `"${calf.birthDate || ''}"`,
+                `"${formatToWareki(calf.birthDate)}"`,
                 `"${calf.sex === 'MALE' ? 'オス/去勢' : 'メス'}"`,
                 `"${calf.motherId || ''}"`,
                 `"${calf.fatherName || ''}"`,
-                `"${calf.auctionDate || ''}"`,
+                `"${formattedAuction}"`,
                 `"${calf.weight || ''}"`,
                 `"${calf.price || ''}"`,
                 `"${calf.isRemoved ? 'アーカイブ済' : '在籍'}"`,
@@ -187,96 +211,116 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
 
         const getEarTagLast5 = (earTag: string) => earTag && earTag.length >= 5 ? earTag.slice(-5) : (earTag || '');
 
-        // 1. 妊娠鑑定する牛 (INSEMINATED and >= 30 days since AI)
-        const pregCheckCows = cows.filter(cow => {
+        const getParity = (cow: Cow) => cow.events.filter(e => e.type === EventType.CALVING).length;
+
+        const getAiCountSinceLastCalving = (cow: Cow) => {
+            const calvingEvents = cow.events.filter(e => e.type === EventType.CALVING).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            const lastCalvingDate = calvingEvents.length > 0 ? calvingEvents[0].date : null;
+            
+            const inseminationEvents = cow.events.filter(e => e.type === EventType.INSEMINATION);
+            if (lastCalvingDate) {
+                return inseminationEvents.filter(e => new Date(e.date).getTime() > new Date(lastCalvingDate).getTime()).length;
+            } else {
+                return inseminationEvents.length;
+            }
+        };
+
+        const getPregnancyCheckStatus = (cow: Cow) => {
+            switch (cow.status) {
+                case BreedingStatus.PREGNANT: return "＋";
+                case BreedingStatus.INSEMINATED: return "未実施";
+                case BreedingStatus.EMPTY:
+                case BreedingStatus.RECOVERY: return "－";
+                default: return "";
+            }
+        };
+
+        const group1: Cow[] = [];
+        const group2: Cow[] = [];
+        const group3: Cow[] = [];
+        const group4: Cow[] = [];
+        const group5: Cow[] = [];
+
+        cows.forEach(cow => {
             const aiDays = getDaysBetween(cow.lastInseminationDate || '');
-            return cow.status === BreedingStatus.INSEMINATED && cow.lastInseminationDate && aiDays >= 30;
+            const openDays = getDaysBetween(cow.lastCalvingDate || ''); // 分娩後〇日
+
+            const daysToCalving = cow.expectedCalvingDate 
+                ? Math.ceil((new Date(cow.expectedCalvingDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+                : null;
+            
+            const aiCount = getAiCountSinceLastCalving(cow);
+
+            // 4. 後1か月で分娩予定
+            if (cow.status === BreedingStatus.PREGNANT && daysToCalving !== null && daysToCalving <= 31) {
+                group4.push(cow);
+            }
+            // 1. 妊娠鑑定リスト (AI後35日以降)
+            else if (cow.status === BreedingStatus.INSEMINATED && cow.lastInseminationDate && aiDays >= 35) {
+                group1.push(cow);
+            }
+            // 2. 未受精リスト (分娩後40日以降、AI無し)
+            else if ((cow.status === BreedingStatus.EMPTY || cow.status === BreedingStatus.RECOVERY) && cow.lastCalvingDate && openDays >= 40 && aiCount === 0) {
+                group2.push(cow);
+            }
+            // 3. 空胎牛リスト（AI有り）
+            else if ((cow.status === BreedingStatus.EMPTY || cow.status === BreedingStatus.RECOVERY) && aiCount > 0) {
+                group3.push(cow);
+            }
+            // 5. それ以外の牛
+            else {
+                group5.push(cow);
+            }
         });
-
-        // 2. 空胎牛 (EMPTY/RECOVERY and >= 30 days since calving)
-        const openCows = cows.filter(cow => {
-            const openDays = getDaysBetween(cow.lastCalvingDate || '');
-            return (cow.status === BreedingStatus.EMPTY || cow.status === BreedingStatus.RECOVERY) && cow.lastCalvingDate && openDays >= 30;
-        });
-
-        // 3. 分娩間近の牛 (PREGNANT and <= 40 days to expected calving)
-        const closeToCalvingCows = cows.filter(cow => {
-            if (cow.status !== BreedingStatus.PREGNANT || !cow.expectedCalvingDate) return false;
-            const daysToCalving = Math.ceil((new Date(cow.expectedCalvingDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-            return daysToCalving <= 40;
-        });
-
-        // 4. 受胎している牛 (PREGNANT)
-        const pregnantCows = cows.filter(cow => cow.status === BreedingStatus.PREGNANT);
-
-        // 5. 空胎牛（休養中）(EMPTY/RECOVERY and <= 30 days since calving)
-        const restingCows = cows.filter(cow => {
-            const openDays = getDaysBetween(cow.lastCalvingDate || '');
-            return (cow.status === BreedingStatus.EMPTY || cow.status === BreedingStatus.RECOVERY) && cow.lastCalvingDate && openDays <= 30;
-        });
-
-        // 6. リスト外 (その他すべての母牛)
-        const otherCows = cows.filter(cow => 
-            !pregCheckCows.includes(cow) && 
-            !openCows.includes(cow) && 
-            !closeToCalvingCows.includes(cow) && 
-            !pregnantCows.includes(cow) && 
-            !restingCows.includes(cow)
-        );
 
         let csvContent = "";
         
-        // ヘッダー（妊娠鑑定用）
-        csvContent += "【1. 妊娠鑑定する牛 (AI後30日以上)】\n";
-        csvContent += "番号(下5桁),名前,生年月日,空胎日数,AI後日数,メモ\n";
-        pregCheckCows.forEach(cow => {
+        // 1. 妊娠鑑定リスト
+        csvContent += "【1. 妊娠鑑定リスト (AI後35日以降)】\n";
+        csvContent += "番号(下5桁),最終AI後日数,最終分娩日,分娩後日数,最終AI日,メモ\n";
+        group1.forEach(cow => {
             const openDays = cow.lastCalvingDate ? getDaysBetween(cow.lastCalvingDate) : '-';
             const aiDays = cow.lastInseminationDate ? getDaysBetween(cow.lastInseminationDate) : '-';
-            csvContent += `"${getEarTagLast5(cow.earTag)}","${cow.name || ''}","${cow.birthDate || ''}","${openDays}","${aiDays}",""\n`;
+            csvContent += `"${getEarTagLast5(cow.earTag)}","${aiDays}","${formatToWareki(cow.lastCalvingDate)}","${openDays}","${formatToWareki(cow.lastInseminationDate)}",""\n`;
         });
         csvContent += "\n\n";
 
-        // ヘッダー（空胎牛用）
-        csvContent += "【2. 空胎牛 (分娩後30日以上未種付)】\n";
-        csvContent += "番号(下5桁),名前,生年月日,空胎日数,AI後日数,メモ\n";
-        openCows.forEach(cow => {
+        // 2. 未受精リスト
+        csvContent += "【2. 未受精リスト (分娩後40日以降)】\n";
+        csvContent += "番号(下5桁),分娩後日数,最終分娩日,メモ\n";
+        group2.forEach(cow => {
             const openDays = cow.lastCalvingDate ? getDaysBetween(cow.lastCalvingDate) : '-';
-            const aiDays = cow.lastInseminationDate ? getDaysBetween(cow.lastInseminationDate) : '-';
-            csvContent += `"${getEarTagLast5(cow.earTag)}","${cow.name || ''}","${cow.birthDate || ''}","${openDays}","${aiDays}",""\n`;
+            csvContent += `"${getEarTagLast5(cow.earTag)}","${openDays}","${formatToWareki(cow.lastCalvingDate)}",""\n`;
         });
         csvContent += "\n\n";
 
-        // ヘッダー（分娩間近の牛用）
-        csvContent += "【3. 分娩間近の牛 (分娩前40日以内)】\n";
-        csvContent += "番号(下5桁),名前,生年月日,分娩予定日,メモ\n";
-        closeToCalvingCows.forEach(cow => {
-            csvContent += `"${getEarTagLast5(cow.earTag)}","${cow.name || ''}","${cow.birthDate || ''}","${cow.expectedCalvingDate || '-'}",""\n`;
-        });
-        csvContent += "\n\n";
-
-        // ヘッダー（受胎している牛用）
-        csvContent += "【4. 受胎している牛 (妊娠鑑定プラス)】\n";
-        csvContent += "番号(下5桁),名前,生年月日,分娩予定日,AI後日数,メモ\n";
-        pregnantCows.forEach(cow => {
-            const aiDays = cow.lastInseminationDate ? getDaysBetween(cow.lastInseminationDate) : '-';
-            csvContent += `"${getEarTagLast5(cow.earTag)}","${cow.name || ''}","${cow.birthDate || ''}","${cow.expectedCalvingDate || '-'}","${aiDays}",""\n`;
-        });
-        csvContent += "\n\n";
-
-        // ヘッダー（休養中の牛用）
-        csvContent += "【5. 空胎牛（休養中 / 分娩後30日以内）】\n";
-        csvContent += "番号(下5桁),名前,生年月日,空胎日数,メモ\n";
-        restingCows.forEach(cow => {
+        // 3. 空胎牛リスト（AI有り）
+        csvContent += "【3. 空胎牛リスト（AI有り）】\n";
+        csvContent += "番号(下5桁),分娩後日数,最終分娩日,AI回数,メモ\n";
+        group3.forEach(cow => {
             const openDays = cow.lastCalvingDate ? getDaysBetween(cow.lastCalvingDate) : '-';
-            csvContent += `"${getEarTagLast5(cow.earTag)}","${cow.name || ''}","${cow.birthDate || ''}","${openDays}",""\n`;
+            const aiCount = getAiCountSinceLastCalving(cow);
+            csvContent += `"${getEarTagLast5(cow.earTag)}","${openDays}","${formatToWareki(cow.lastCalvingDate)}","${aiCount}",""\n`;
         });
         csvContent += "\n\n";
 
-        // ヘッダー（リスト外の牛用）
-        csvContent += "【6. その他（リスト外の牛）】\n";
-        csvContent += "番号(下5桁),名前,生年月日,状態,メモ\n";
-        otherCows.forEach(cow => {
-            csvContent += `"${getEarTagLast5(cow.earTag)}","${cow.name || ''}","${cow.birthDate || ''}","${cow.status}",""\n`;
+        // 4. 後1か月で分娩予定
+        csvContent += "【4. 後1か月で分娩予定】\n";
+        csvContent += "番号(下5桁),産次,最終AI日,分娩予定日,分娩まで日数,メモ\n";
+        group4.forEach(cow => {
+            const daysToCalving = cow.expectedCalvingDate 
+                ? Math.ceil((new Date(cow.expectedCalvingDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+                : '-';
+            csvContent += `"${getEarTagLast5(cow.earTag)}","${getParity(cow)}","${formatToWareki(cow.lastInseminationDate)}","${formatToWareki(cow.expectedCalvingDate)}","${daysToCalving}",""\n`;
+        });
+        csvContent += "\n\n";
+
+        // 5. それ以外の牛
+        csvContent += "【5. それ以外の牛】\n";
+        csvContent += "番号(下5桁),最終分娩日,最終AI日,鑑定＋－,空胎日数,メモ\n";
+        group5.forEach(cow => {
+            const openDays = cow.lastCalvingDate ? getDaysBetween(cow.lastCalvingDate) : '-';
+            csvContent += `"${getEarTagLast5(cow.earTag)}","${formatToWareki(cow.lastCalvingDate)}","${formatToWareki(cow.lastInseminationDate)}","${getPregnancyCheckStatus(cow)}","${openDays}",""\n`;
         });
 
         // Windows用Shift_JISにするのは難しいのでBOM付きUTF-8にする
