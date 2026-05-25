@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Settings as SettingsType, Cow, BreedingStatus, EventType, BreedingEvent, Calf, GeneralEvent } from '../types';
-import { Save, Download, Upload, FileText, Database, HelpCircle, AlertCircle, Share2, Wifi, RefreshCw, Palette, X, Lock, ListTodo, Trash2, Plus } from 'lucide-react';
+import { Save, Download, Upload, FileText, Database, HelpCircle, AlertCircle, Share2, Wifi, RefreshCw, Palette, X, Lock, ListTodo, Trash2, Plus, CheckCircle2 } from 'lucide-react';
 import { calculateExpectedCalvingDate, recalculateCowStatus } from '../utils/breedingService';
 import { initFirebase } from '../utils/firebaseService';
 
@@ -21,6 +21,11 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
     const [showImportModal, setShowImportModal] = useState(false);
     const [showRulesModal, setShowRulesModal] = useState(false);
     
+    // Import Progress States
+    const [isImporting, setIsImporting] = useState(false);
+    const [importProgress, setImportProgress] = useState(0);
+    const [importResults, setImportResults] = useState<{ success: number; error: number } | null>(null);
+
     // Sync States
     const [syncConfig, setSyncConfig] = useState(settings.sync?.firebaseConfigString || '');
     const [familyId, setFamilyId] = useState(settings.sync?.familyId || '');
@@ -110,11 +115,11 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
             const notesText = (cow.notes || []).map(n => `[${n.isTodo ? (n.isDone ? '済' : '未') : 'メモ'}] ${n.text}`).join(' / ').replace(/"/g, '""');
 
             const row = [
-                `"${cow.earTag}"`,
-                `"${cow.name}"`,
-                `"${cow.birthDate}"`,
-                `"${cow.fatherName}"`,
-                `"${cow.motherFatherName}"`,
+                `"${cow.earTag || ''}"`,
+                `"${cow.name || ''}"`,
+                `"${cow.birthDate || ''}"`,
+                `"${cow.fatherName || ''}"`,
+                `"${cow.motherFatherName || ''}"`,
                 `"${cow.lastInseminationDate || ''}"`,
                 `"${bullName}"`,
                 `"${cow.lastCalvingDate || ''}"`,
@@ -147,7 +152,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
             const row = [
                 `"${calf.earTag || ''}"`,
                 `"${calf.name || ''}"`,
-                `"${calf.birthDate}"`,
+                `"${calf.birthDate || ''}"`,
                 `"${calf.sex === 'MALE' ? 'オス/去勢' : 'メス'}"`,
                 `"${calf.motherId || ''}"`,
                 `"${calf.fatherName || ''}"`,
@@ -170,6 +175,122 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
         calfLink.click();
         document.body.removeChild(calfLink);
         URL.revokeObjectURL(calfUrl);
+    };
+
+    // Export Breeding Checkup Data as CSV
+    const handleExportBreedingCheckupCsv = () => {
+        const today = new Date();
+        const getDaysBetween = (dateStr: string) => {
+            if (!dateStr) return 0;
+            return Math.floor((today.getTime() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
+        };
+
+        const getEarTagLast5 = (earTag: string) => earTag && earTag.length >= 5 ? earTag.slice(-5) : (earTag || '');
+
+        // 1. 妊娠鑑定する牛 (INSEMINATED and >= 30 days since AI)
+        const pregCheckCows = cows.filter(cow => {
+            const aiDays = getDaysBetween(cow.lastInseminationDate || '');
+            return cow.status === BreedingStatus.INSEMINATED && cow.lastInseminationDate && aiDays >= 30;
+        });
+
+        // 2. 空胎牛 (EMPTY/RECOVERY and >= 30 days since calving)
+        const openCows = cows.filter(cow => {
+            const openDays = getDaysBetween(cow.lastCalvingDate || '');
+            return (cow.status === BreedingStatus.EMPTY || cow.status === BreedingStatus.RECOVERY) && cow.lastCalvingDate && openDays >= 30;
+        });
+
+        // 3. 分娩間近の牛 (PREGNANT and <= 40 days to expected calving)
+        const closeToCalvingCows = cows.filter(cow => {
+            if (cow.status !== BreedingStatus.PREGNANT || !cow.expectedCalvingDate) return false;
+            const daysToCalving = Math.ceil((new Date(cow.expectedCalvingDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            return daysToCalving <= 40;
+        });
+
+        // 4. 受胎している牛 (PREGNANT)
+        const pregnantCows = cows.filter(cow => cow.status === BreedingStatus.PREGNANT);
+
+        // 5. 空胎牛（休養中）(EMPTY/RECOVERY and <= 30 days since calving)
+        const restingCows = cows.filter(cow => {
+            const openDays = getDaysBetween(cow.lastCalvingDate || '');
+            return (cow.status === BreedingStatus.EMPTY || cow.status === BreedingStatus.RECOVERY) && cow.lastCalvingDate && openDays <= 30;
+        });
+
+        // 6. リスト外 (その他すべての母牛)
+        const otherCows = cows.filter(cow => 
+            !pregCheckCows.includes(cow) && 
+            !openCows.includes(cow) && 
+            !closeToCalvingCows.includes(cow) && 
+            !pregnantCows.includes(cow) && 
+            !restingCows.includes(cow)
+        );
+
+        let csvContent = "";
+        
+        // ヘッダー（妊娠鑑定用）
+        csvContent += "【1. 妊娠鑑定する牛 (AI後30日以上)】\n";
+        csvContent += "番号(下5桁),名前,生年月日,空胎日数,AI後日数,メモ\n";
+        pregCheckCows.forEach(cow => {
+            const openDays = cow.lastCalvingDate ? getDaysBetween(cow.lastCalvingDate) : '-';
+            const aiDays = cow.lastInseminationDate ? getDaysBetween(cow.lastInseminationDate) : '-';
+            csvContent += `"${getEarTagLast5(cow.earTag)}","${cow.name || ''}","${cow.birthDate || ''}","${openDays}","${aiDays}",""\n`;
+        });
+        csvContent += "\n\n";
+
+        // ヘッダー（空胎牛用）
+        csvContent += "【2. 空胎牛 (分娩後30日以上未種付)】\n";
+        csvContent += "番号(下5桁),名前,生年月日,空胎日数,AI後日数,メモ\n";
+        openCows.forEach(cow => {
+            const openDays = cow.lastCalvingDate ? getDaysBetween(cow.lastCalvingDate) : '-';
+            const aiDays = cow.lastInseminationDate ? getDaysBetween(cow.lastInseminationDate) : '-';
+            csvContent += `"${getEarTagLast5(cow.earTag)}","${cow.name || ''}","${cow.birthDate || ''}","${openDays}","${aiDays}",""\n`;
+        });
+        csvContent += "\n\n";
+
+        // ヘッダー（分娩間近の牛用）
+        csvContent += "【3. 分娩間近の牛 (分娩前40日以内)】\n";
+        csvContent += "番号(下5桁),名前,生年月日,分娩予定日,メモ\n";
+        closeToCalvingCows.forEach(cow => {
+            csvContent += `"${getEarTagLast5(cow.earTag)}","${cow.name || ''}","${cow.birthDate || ''}","${cow.expectedCalvingDate || '-'}",""\n`;
+        });
+        csvContent += "\n\n";
+
+        // ヘッダー（受胎している牛用）
+        csvContent += "【4. 受胎している牛 (妊娠鑑定プラス)】\n";
+        csvContent += "番号(下5桁),名前,生年月日,分娩予定日,AI後日数,メモ\n";
+        pregnantCows.forEach(cow => {
+            const aiDays = cow.lastInseminationDate ? getDaysBetween(cow.lastInseminationDate) : '-';
+            csvContent += `"${getEarTagLast5(cow.earTag)}","${cow.name || ''}","${cow.birthDate || ''}","${cow.expectedCalvingDate || '-'}","${aiDays}",""\n`;
+        });
+        csvContent += "\n\n";
+
+        // ヘッダー（休養中の牛用）
+        csvContent += "【5. 空胎牛（休養中 / 分娩後30日以内）】\n";
+        csvContent += "番号(下5桁),名前,生年月日,空胎日数,メモ\n";
+        restingCows.forEach(cow => {
+            const openDays = cow.lastCalvingDate ? getDaysBetween(cow.lastCalvingDate) : '-';
+            csvContent += `"${getEarTagLast5(cow.earTag)}","${cow.name || ''}","${cow.birthDate || ''}","${openDays}",""\n`;
+        });
+        csvContent += "\n\n";
+
+        // ヘッダー（リスト外の牛用）
+        csvContent += "【6. その他（リスト外の牛）】\n";
+        csvContent += "番号(下5桁),名前,生年月日,状態,メモ\n";
+        otherCows.forEach(cow => {
+            csvContent += `"${getEarTagLast5(cow.earTag)}","${cow.name || ''}","${cow.birthDate || ''}","${cow.status}",""\n`;
+        });
+
+        // Windows用Shift_JISにするのは難しいのでBOM付きUTF-8にする
+        const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+        const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `wagyumate_breeding_checkup_${new Date().toISOString().slice(0,10)}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     };
 
     // Import Data from JSON (Backup Restore)
@@ -213,17 +334,29 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
     };
 
     // Import CSV (Register Cows)
-    const handleImportCsv = () => {
+    const handleImportCsv = async () => {
         if (!csvText) {
             alert('データが入力されていません');
             return;
         }
         
         const lines = csvText.trim().split('\n');
+        if (lines.length === 0) return;
+
+        setIsImporting(true);
+        setImportProgress(0);
+        setImportResults(null);
+
         const newCows: Cow[] = [];
+        let successCount = 0;
+        let errorCount = 0;
         
-        try {
-            lines.forEach((line, idx) => {
+        const chunkSize = 20;
+        for (let i = 0; i < lines.length; i += chunkSize) {
+            const chunk = lines.slice(i, i + chunkSize);
+            
+            chunk.forEach((line, idxInChunk) => {
+                const idx = i + idxInChunk;
                 if (!line.trim()) return;
                 
                 // Format: earTag, name, birthDate, fatherName, motherFatherName, 種付け年月日, 種付け種雄牛, 分娩年月日
@@ -232,65 +365,70 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
                 if (idx === 0 && (parts[0].includes('耳標') || parts[0].includes('番号'))) return;
 
                 if (parts.length >= 3) {
-                   const lastInsem = parts[5]?.trim() || undefined;
-                   const bullName = parts[6]?.trim() || undefined;
-                   const lastCalving = parts[7]?.trim() || undefined;
-                   
-                   // Simple ID gen
-                   const uniqueId = Date.now().toString() + Math.random().toString(36).substr(2, 5);
-                   const events: BreedingEvent[] = [];
-                   if (lastInsem) {
-                       events.push({
-                           id: Date.now().toString() + Math.random().toString(36).substr(2, 5) + '1',
-                           cowId: uniqueId,
-                           type: EventType.INSEMINATION,
-                           date: lastInsem,
-                           details: 'CSVインポート',
-                           relatedId: bullName
-                       });
-                   }
-                   if (lastCalving) {
-                       events.push({
-                           id: Date.now().toString() + Math.random().toString(36).substr(2, 5) + '2',
-                           cowId: uniqueId,
-                           type: EventType.CALVING,
-                           date: lastCalving,
-                           details: 'CSVインポート'
-                       });
-                   }
+                   try {
+                       const lastInsem = parts[5]?.trim() || undefined;
+                       const bullName = parts[6]?.trim() || undefined;
+                       const lastCalving = parts[7]?.trim() || undefined;
+                       
+                       // Simple ID gen
+                       const uniqueId = Date.now().toString() + Math.random().toString(36).substring(2, 7) + idx;
+                       const events: BreedingEvent[] = [];
+                       if (lastInsem) {
+                           events.push({
+                               id: Date.now().toString() + Math.random().toString(36).substring(2, 7) + '1',
+                               cowId: uniqueId,
+                               type: EventType.INSEMINATION,
+                               date: lastInsem,
+                               details: 'CSVインポート',
+                               relatedId: bullName
+                           });
+                       }
+                       if (lastCalving) {
+                           events.push({
+                               id: Date.now().toString() + Math.random().toString(36).substring(2, 7) + '2',
+                               cowId: uniqueId,
+                               type: EventType.CALVING,
+                               date: lastCalving,
+                               details: 'CSVインポート'
+                           });
+                       }
 
-                   const { status, expectedCalvingDate } = recalculateCowStatus(events);
+                       const { status, expectedCalvingDate } = recalculateCowStatus(events);
 
-                   const newCow: Cow = {
-                       id: uniqueId,
-                       earTag: parts[0].trim(),
-                       name: parts[1].trim(),
-                       birthDate: parts[2].trim(), // Expect YYYY-MM-DD or similar
-                       fatherName: parts[3]?.trim() || '',
-                       motherFatherName: parts[4]?.trim() || '',
-                       lastInseminationDate: lastInsem,
-                       lastCalvingDate: lastCalving,
-                       status: status,
-                       expectedCalvingDate: expectedCalvingDate,
-                       events: events,
-                       badges: []
-                   };
-                   newCows.push(newCow);
+                       const newCow: Cow = {
+                           id: uniqueId,
+                           earTag: parts[0].trim(),
+                           name: parts[1].trim(),
+                           birthDate: parts[2].trim(), // Expect YYYY-MM-DD or similar
+                           fatherName: parts[3]?.trim() || '',
+                           motherFatherName: parts[4]?.trim() || '',
+                           lastInseminationDate: lastInsem,
+                           lastCalvingDate: lastCalving,
+                           status: status,
+                           expectedCalvingDate: expectedCalvingDate,
+                           events: events,
+                           badges: []
+                       };
+                       newCows.push(newCow);
+                       successCount++;
+                   } catch (e) {
+                       errorCount++;
+                   }
+                } else {
+                    errorCount++;
                 }
             });
-            
-            if (newCows.length > 0) {
-                 if(window.confirm(`${newCows.length}頭の牛を追加しますか？\n（既存のデータに追加されます）`)) {
-                     onImportCows([...cows, ...newCows]);
-                     setShowImportModal(false);
-                     setCsvText('');
-                     alert('登録が完了しました！');
-                 }
-            } else {
-                alert('有効なデータが見つかりませんでした。\nフォーマットを確認してください。');
-            }
-        } catch (e) {
-            alert('データの解析に失敗しました。カンマ区切りか確認してください。');
+
+            setImportProgress(Math.min(100, Math.round(((i + chunk.length) / lines.length) * 100)));
+            // Yield to browser to update UI smoothly
+            await new Promise(resolve => setTimeout(resolve, 50));
+        }
+
+        setIsImporting(false);
+        setImportResults({ success: successCount, error: errorCount });
+
+        if (newCows.length > 0) {
+            onImportCows([...cows, ...newCows]);
         }
     };
 
@@ -547,26 +685,38 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
                  </div>
                  
                  <div className="grid grid-cols-1 gap-3">
-                     <div className="flex gap-2">
+                     <div className="bg-green-50/50 p-4 rounded-xl border border-green-200">
+                         <h3 className="font-bold flex items-center gap-2 mb-3 text-green-800">
+                             <FileText size={16} /> 各種データ書き出し
+                         </h3>
+                         <div className="grid grid-cols-2 gap-2 mb-2">
+                             <button 
+                                onClick={handleExportCowCsv}
+                                className="flex-1 border border-green-600 text-green-700 bg-white font-bold py-3 text-sm rounded-xl flex items-center justify-center gap-1 hover:bg-green-50 shadow-sm"
+                             >
+                                 <FileText size={18} />
+                                 母牛CSV
+                             </button>
+                             <button 
+                                onClick={handleExportCalfCsv}
+                                className="flex-1 border border-green-600 text-green-700 bg-white font-bold py-3 text-sm rounded-xl flex items-center justify-center gap-1 hover:bg-green-50 shadow-sm"
+                             >
+                                 <FileText size={18} />
+                                 子牛CSV
+                             </button>
+                         </div>
                          <button 
-                            onClick={handleExportCowCsv}
-                            className="flex-1 border border-green-600 text-green-700 bg-green-50 font-bold py-3 text-sm rounded-xl flex items-center justify-center gap-1 hover:bg-green-100"
+                            onClick={handleExportBreedingCheckupCsv}
+                            className="w-full border-2 border-indigo-500 text-indigo-700 bg-white font-bold py-3 text-sm rounded-xl flex items-center justify-center gap-2 hover:bg-indigo-50 shadow-sm transition-colors"
                          >
-                             <FileText size={18} />
-                             母牛CSV
-                         </button>
-                         <button 
-                            onClick={handleExportCalfCsv}
-                            className="flex-1 border border-green-600 text-green-700 bg-green-50 font-bold py-3 text-sm rounded-xl flex items-center justify-center gap-1 hover:bg-green-100"
-                         >
-                             <FileText size={18} />
-                             子牛CSV
+                             <FileText size={18} className="text-indigo-500" />
+                             繁殖検診用抽出CSV (鑑定/空胎/分娩前/受胎)
                          </button>
                      </div>
 
                      <button 
                         onClick={() => setShowImportModal(true)}
-                        className="w-full bg-wagyu-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-wagyu-700 shadow-md"
+                        className="w-full bg-wagyu-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-wagyu-700 shadow-md mt-2"
                      >
                          <Upload size={20} />
                          一括登録 (コピー＆ペースト)
@@ -638,21 +788,57 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
                             onChange={e => setCsvText(e.target.value)}
                          />
                          
-                         <div className="flex flex-col gap-3">
-                             <button 
-                                onClick={handleImportCsv}
-                                className="w-full bg-wagyu-500 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2"
-                             >
-                                 <Save size={24} />
-                                 登録を実行する
-                             </button>
-                             <button 
-                                onClick={() => setShowImportModal(false)}
-                                className="w-full bg-gray-100 text-gray-600 font-bold py-3 rounded-xl hover:bg-gray-200"
-                             >
-                                 キャンセル
-                             </button>
-                         </div>
+                         {importResults ? (
+                             <div className="bg-green-50 p-6 rounded-xl border border-green-200 text-center mb-4">
+                                 <CheckCircle2 size={40} className="text-green-500 mx-auto mb-2" />
+                                 <h4 className="font-bold text-lg text-green-800 mb-2">インポートが完了しました！</h4>
+                                 <div className="flex justify-center gap-4 text-sm">
+                                     <span className="font-bold text-wagyu-700">登録成功: <span className="text-lg">{importResults.success}</span>件</span>
+                                     {importResults.error > 0 && <span className="font-bold text-red-500">エラー: <span className="text-lg">{importResults.error}</span>件</span>}
+                                 </div>
+                                 <button 
+                                     onClick={() => {
+                                         setShowImportModal(false);
+                                         setCsvText('');
+                                         setImportResults(null);
+                                     }}
+                                     className="w-full bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700 mt-6 shadow-md transition-all active:scale-95"
+                                 >
+                                     確認して閉じる
+                                 </button>
+                             </div>
+                         ) : (
+                             <div className="flex flex-col gap-3">
+                                 {isImporting ? (
+                                     <div className="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 mb-2">
+                                         <div className="flex justify-between items-center mb-2">
+                                             <span className="text-sm font-bold text-gray-700">データ処理中...</span>
+                                             <span className="text-sm font-bold text-wagyu-600">{importProgress}%</span>
+                                         </div>
+                                         <div className="w-full bg-gray-200 rounded-full h-3">
+                                             <div className="bg-wagyu-500 h-3 rounded-full transition-all duration-100 ease-linear" style={{ width: `${importProgress}%` }}></div>
+                                         </div>
+                                     </div>
+                                 ) : (
+                                     <>
+                                         <button 
+                                            onClick={handleImportCsv}
+                                            disabled={!csvText.trim()}
+                                            className="w-full bg-wagyu-500 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                         >
+                                             <Save size={24} />
+                                             登録を実行する
+                                         </button>
+                                         <button 
+                                            onClick={() => setShowImportModal(false)}
+                                            className="w-full bg-gray-100 text-gray-600 font-bold py-3 rounded-xl hover:bg-gray-200"
+                                         >
+                                             キャンセル
+                                         </button>
+                                     </>
+                                 )}
+                             </div>
+                         )}
                      </div>
                  </div>
              )}
