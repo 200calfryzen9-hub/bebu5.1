@@ -110,7 +110,33 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
         try {
             const date = new Date(dateStr);
             if (isNaN(date.getTime())) return '';
-            return new Intl.DateTimeFormat('ja-JP-u-ca-japanese', { dateStyle: 'long' }).format(date);
+            const parts = new Intl.DateTimeFormat('ja-JP-u-ca-japanese', { 
+                era: 'short', year: 'numeric', month: 'numeric', day: 'numeric' 
+            }).formatToParts(date);
+            
+            let era = '';
+            let year = '';
+            let month = '';
+            let day = '';
+            
+            for (const part of parts) {
+                if (part.type === 'era') {
+                    if (part.value === '令和' || part.value.includes('令') || part.value === 'R') era = 'R';
+                    else if (part.value === '平成' || part.value.includes('平') || part.value === 'H') era = 'H';
+                    else if (part.value === '昭和' || part.value.includes('昭') || part.value === 'S') era = 'S';
+                    else era = part.value.charAt(0);
+                } else if (part.type === 'year') {
+                    year = part.value;
+                } else if (part.type === 'month') {
+                    month = part.value;
+                } else if (part.type === 'day') {
+                    day = part.value;
+                }
+            }
+            if (year && month && day) {
+                return `${era}${year}.${month}.${day}`;
+            }
+            return dateStr;
         } catch (e) {
             return dateStr;
         }
@@ -126,8 +152,8 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
             const notesText = (cow.notes || []).map(n => `[${n.isTodo ? (n.isDone ? '済' : '未') : 'メモ'}] ${n.text}`).join(' / ').replace(/"/g, '""');
 
             const row = [
-                `"${cow.earTag || ''}"`,
-                `"${cow.name || ''}"`,
+                `"${(cow.earTag || '').trim()}"`,
+                `"${(cow.name || '').trim()}"`,
                 `"${formatToWareki(cow.birthDate)}"`,
                 `"${cow.fatherName || ''}"`,
                 `"${cow.motherFatherName || ''}"`,
@@ -174,8 +200,8 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
             }
 
             const row = [
-                `"${calf.earTag || ''}"`,
-                `"${calf.name || ''}"`,
+                `"${(calf.earTag || '').trim()}"`,
+                `"${(calf.name || '').trim()}"`,
                 `"${formatToWareki(calf.birthDate)}"`,
                 `"${calf.sex === 'MALE' ? 'オス/去勢' : 'メス'}"`,
                 `"${calf.motherId || ''}"`,
@@ -209,7 +235,10 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
             return Math.floor((today.getTime() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
         };
 
-        const getEarTagLast5 = (earTag: string) => earTag && earTag.length >= 5 ? earTag.slice(-5) : (earTag || '');
+        const getEarTagLast5 = (earTag: string) => {
+            const trimmed = (earTag || '').replace(/\s+/g, '');
+            return trimmed.length >= 5 ? trimmed.slice(-5) : trimmed;
+        };
 
         const getParity = (cow: Cow) => cow.events.filter(e => e.type === EventType.CALVING).length;
 
@@ -252,7 +281,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
             const aiCount = getAiCountSinceLastCalving(cow);
 
             // 4. 後1か月で分娩予定
-            if (cow.status === BreedingStatus.PREGNANT && daysToCalving !== null && daysToCalving <= 31) {
+            if ((cow.status === BreedingStatus.PREGNANT || cow.status === BreedingStatus.CALVING_SOON) && daysToCalving !== null && daysToCalving <= 30) {
                 group4.push(cow);
             }
             // 1. 妊娠鑑定リスト (AI後35日以降)
