@@ -126,11 +126,11 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
                     else if (part.value === '昭和' || part.value.includes('昭') || part.value === 'S') era = 'S';
                     else era = part.value.charAt(0);
                 } else if (part.type === 'year') {
-                    year = part.value;
+                    year = part.value === '元' ? '1' : part.value.replace(/\D/g, '');
                 } else if (part.type === 'month') {
-                    month = part.value;
+                    month = part.value.replace(/\D/g, '');
                 } else if (part.type === 'day') {
-                    day = part.value;
+                    day = part.value.replace(/\D/g, '');
                 }
             }
             if (year && month && day) {
@@ -152,8 +152,8 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
             const notesText = (cow.notes || []).map(n => `[${n.isTodo ? (n.isDone ? '済' : '未') : 'メモ'}] ${n.text}`).join(' / ').replace(/"/g, '""');
 
             const row = [
-                `"${(cow.earTag || '').trim()}"`,
-                `"${(cow.name || '').trim()}"`,
+                `="${(cow.earTag || '').replace(/\s+/g, '')}"`,
+                `"${(cow.name || '').replace(/\s+/g, '')}"`,
                 `"${formatToWareki(cow.birthDate)}"`,
                 `"${cow.fatherName || ''}"`,
                 `"${cow.motherFatherName || ''}"`,
@@ -200,8 +200,8 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
             }
 
             const row = [
-                `"${(calf.earTag || '').trim()}"`,
-                `"${(calf.name || '').trim()}"`,
+                `="${(calf.earTag || '').replace(/\s+/g, '')}"`,
+                `"${(calf.name || '').replace(/\s+/g, '')}"`,
                 `"${formatToWareki(calf.birthDate)}"`,
                 `"${calf.sex === 'MALE' ? 'オス/去勢' : 'メス'}"`,
                 `"${calf.motherId || ''}"`,
@@ -306,50 +306,60 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
         
         // 1. 妊娠鑑定リスト
         csvContent += "【1. 妊娠鑑定リスト (AI後35日以降)】\n";
-        csvContent += "番号(下5桁),最終AI後日数,最終分娩日,分娩後日数,最終AI日,メモ\n";
-        group1.forEach(cow => {
+        const header1 = "番号(下5桁),名前,最終AI後日数,最終分娩日,分娩後日数,最終AI日,メモ\n";
+        csvContent += header1;
+        group1.forEach((cow, i) => {
+            if (i > 0 && i % 40 === 0) csvContent += "\n" + header1;
             const openDays = cow.lastCalvingDate ? getDaysBetween(cow.lastCalvingDate) : '-';
             const aiDays = cow.lastInseminationDate ? getDaysBetween(cow.lastInseminationDate) : '-';
-            csvContent += `"${getEarTagLast5(cow.earTag)}","${aiDays}","${formatToWareki(cow.lastCalvingDate)}","${openDays}","${formatToWareki(cow.lastInseminationDate)}",""\n`;
+            csvContent += `="${getEarTagLast5(cow.earTag)}","${(cow.name || '').replace(/\s+/g, '')}","${aiDays}","${formatToWareki(cow.lastCalvingDate)}","${openDays}","${formatToWareki(cow.lastInseminationDate)}",""\n`;
         });
         csvContent += "\n\n";
 
         // 2. 未受精リスト
         csvContent += "【2. 未受精リスト (分娩後40日以降)】\n";
-        csvContent += "番号(下5桁),分娩後日数,最終分娩日,メモ\n";
-        group2.forEach(cow => {
+        const header2 = "番号(下5桁),名前,分娩後日数,最終分娩日,メモ\n";
+        csvContent += header2;
+        group2.forEach((cow, i) => {
+            if (i > 0 && i % 40 === 0) csvContent += "\n" + header2;
             const openDays = cow.lastCalvingDate ? getDaysBetween(cow.lastCalvingDate) : '-';
-            csvContent += `"${getEarTagLast5(cow.earTag)}","${openDays}","${formatToWareki(cow.lastCalvingDate)}",""\n`;
+            csvContent += `="${getEarTagLast5(cow.earTag)}","${(cow.name || '').replace(/\s+/g, '')}","${openDays}","${formatToWareki(cow.lastCalvingDate)}",""\n`;
         });
         csvContent += "\n\n";
 
         // 3. 空胎牛リスト（AI有り）
         csvContent += "【3. 空胎牛リスト（AI有り）】\n";
-        csvContent += "番号(下5桁),分娩後日数,最終分娩日,AI回数,メモ\n";
-        group3.forEach(cow => {
+        const header3 = "番号(下5桁),名前,分娩後日数,最終分娩日,AI回数,メモ\n";
+        csvContent += header3;
+        group3.forEach((cow, i) => {
+            if (i > 0 && i % 40 === 0) csvContent += "\n" + header3;
             const openDays = cow.lastCalvingDate ? getDaysBetween(cow.lastCalvingDate) : '-';
             const aiCount = getAiCountSinceLastCalving(cow);
-            csvContent += `"${getEarTagLast5(cow.earTag)}","${openDays}","${formatToWareki(cow.lastCalvingDate)}","${aiCount}",""\n`;
+            csvContent += `="${getEarTagLast5(cow.earTag)}","${(cow.name || '').replace(/\s+/g, '')}","${openDays}","${formatToWareki(cow.lastCalvingDate)}","${aiCount}",""\n`;
         });
         csvContent += "\n\n";
 
         // 4. 後1か月で分娩予定
         csvContent += "【4. 後1か月で分娩予定】\n";
-        csvContent += "番号(下5桁),産次,最終AI日,分娩予定日,分娩まで日数,メモ\n";
-        group4.forEach(cow => {
+        const header4 = "番号(下5桁),名前,産次,最終AI日,分娩予定日,分娩まで日数,メモ\n";
+        csvContent += header4;
+        group4.forEach((cow, i) => {
+            if (i > 0 && i % 40 === 0) csvContent += "\n" + header4;
             const daysToCalving = cow.expectedCalvingDate 
                 ? Math.ceil((new Date(cow.expectedCalvingDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
                 : '-';
-            csvContent += `"${getEarTagLast5(cow.earTag)}","${getParity(cow)}","${formatToWareki(cow.lastInseminationDate)}","${formatToWareki(cow.expectedCalvingDate)}","${daysToCalving}",""\n`;
+            csvContent += `="${getEarTagLast5(cow.earTag)}","${(cow.name || '').replace(/\s+/g, '')}","${getParity(cow)}","${formatToWareki(cow.lastInseminationDate)}","${formatToWareki(cow.expectedCalvingDate)}","${daysToCalving}",""\n`;
         });
         csvContent += "\n\n";
 
         // 5. それ以外の牛
         csvContent += "【5. それ以外の牛】\n";
-        csvContent += "番号(下5桁),最終分娩日,最終AI日,鑑定＋－,空胎日数,メモ\n";
-        group5.forEach(cow => {
+        const header5 = "番号(下5桁),名前,最終分娩日,最終AI日,鑑定＋－,空胎日数,メモ\n";
+        csvContent += header5;
+        group5.forEach((cow, i) => {
+            if (i > 0 && i % 40 === 0) csvContent += "\n" + header5;
             const openDays = cow.lastCalvingDate ? getDaysBetween(cow.lastCalvingDate) : '-';
-            csvContent += `"${getEarTagLast5(cow.earTag)}","${formatToWareki(cow.lastCalvingDate)}","${formatToWareki(cow.lastInseminationDate)}","${getPregnancyCheckStatus(cow)}","${openDays}",""\n`;
+            csvContent += `="${getEarTagLast5(cow.earTag)}","${(cow.name || '').replace(/\s+/g, '')}","${formatToWareki(cow.lastCalvingDate)}","${formatToWareki(cow.lastInseminationDate)}","${getPregnancyCheckStatus(cow)}","${openDays}",""\n`;
         });
 
         // Windows用Shift_JISにするのは難しいのでBOM付きUTF-8にする
