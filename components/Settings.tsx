@@ -708,16 +708,36 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
                  </button>
              </div>
 
-             {/* Calf Todo Settings */}
+             {/* Calf Settings */}
              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
                  <h2 className="font-bold text-lg border-b pb-2 flex items-center gap-2">
-                     <ListTodo size={20} className="text-wagyu-600" />
-                     子牛のデフォルトToDo設定
+                     <Database size={20} className="text-wagyu-600" />
+                     子牛・経営設定
                  </h2>
-                 <p className="text-xs text-gray-500 mb-2">
-                     新しく子牛を登録した際に、自動的に追加されるToDoリストを設定します。
-                 </p>
-                 <div className="space-y-2">
+                 <div className="mb-4">
+                     <label className="block text-sm font-medium text-gray-700 mb-2">予想平均セリ価格 (1頭あたり)</label>
+                     <p className="text-xs text-gray-500 mb-2">経営分析での売上予測の計算に使用されます</p>
+                     <div className="flex items-center gap-2">
+                        <input 
+                            type="number" 
+                            value={localSettings.estimatedCalfPrice || 750000} 
+                            onChange={(e)=>setLocalSettings({...localSettings, estimatedCalfPrice: Number(e.target.value)})} 
+                            className="w-full border border-gray-300 rounded-lg p-3 text-lg font-bold"
+                            step="10000"
+                        />
+                        <span className="text-gray-600 font-bold whitespace-nowrap">円</span>
+                     </div>
+                 </div>
+                 
+                 <div className="border-t border-gray-100 pt-4">
+                     <h3 className="font-bold text-md mb-2 flex items-center gap-2">
+                         <ListTodo size={18} className="text-wagyu-600" />
+                         子牛のデフォルトToDo設定
+                     </h3>
+                     <p className="text-xs text-gray-500 mb-2">
+                         新しく子牛を登録した際に、自動的に追加されるToDoリストを設定します。
+                     </p>
+                     <div className="space-y-2">
                      {(localSettings.defaultCalfTodos || []).map((todo, idx) => (
                          <div key={idx} className="flex items-center gap-2">
                              <input
@@ -750,6 +770,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
                      >
                          <Plus size={16} /> ToDo項目を追加
                      </button>
+                 </div>
                  </div>
                  <button onClick={handleSaveSettings} className="w-full bg-wagyu-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg hover:bg-wagyu-700 mt-4">
                     <Save size={20} /> 設定を保存する

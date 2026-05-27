@@ -9,6 +9,7 @@ export const DEFAULT_SETTINGS: Settings = {
   alertEmptyDays: 60, // Highlight list red if empty > 60 days
   alertCalvingSoonDays: 30, // Highlight list purple if calving < 30 days
   alertHeiferCalvingSoonDays: 45, // Highlight list pink if heifer calving < 45 days (First time needs more prep)
+  estimatedCalfPrice: 750000,
   sync: {
       enabled: false,
       familyId: '',

@@ -1,17 +1,18 @@
 
-import React from 'react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { Calf, Cow } from '../types';
+import React, { useMemo } from 'react';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LineChart, Line, ComposedChart } from 'recharts';
+import { Calf, Cow, Settings as SettingsType, BreedingStatus } from '../types';
 import { formatDateJP, calculateBreedingScore, daysBetween, parseDate } from '../utils/breedingService';
-import { GitFork, RotateCcw, Activity } from 'lucide-react';
+import { GitFork, RotateCcw, Activity, TrendingUp } from 'lucide-react';
 
 interface AnalyticsProps {
   cows: Cow[];
   calves: Calf[];
+  settings: SettingsType;
   onResetData: () => void;
 }
 
-export const Analytics: React.FC<AnalyticsProps> = ({ cows, calves, onResetData }) => {
+export const Analytics: React.FC<AnalyticsProps> = ({ cows, calves, settings, onResetData }) => {
   // Sales Data Processing
   const salesData = calves.filter(c => c.price && c.price > 0).map(c => {
         const dateStr = c.auctionDate || c.birthDate;
@@ -66,43 +67,70 @@ export const Analytics: React.FC<AnalyticsProps> = ({ cows, calves, onResetData 
   const fatherStats = calculateBloodlineStats('fatherName'); 
   const grandFatherStats = calculateBloodlineStats('motherFatherName'); 
 
-  // --- SALES FORECAST ---
-  const currentYear = new Date().getFullYear();
-  const nextYear = currentYear + 1;
-
-  let currentYearExpectedCount = 0;
-  let nextYearExpectedCount = 0;
-  const expectedAuctionMonths: Record<string, number> = {};
-
-  const unsoldCalves = calves.filter(c => !c.price || c.price === 0);
+  // --- REVENUE PROJECTION ---
+  const estimatedPrice = settings?.estimatedCalfPrice || 750000;
   
-  unsoldCalves.forEach(calf => {
-      const birthDate = new Date(calf.birthDate);
-      // Expected auction is approx 9 months (270 days) after birth
-      const expectedAuctionDate = new Date(birthDate.getTime() + 270 * 24 * 60 * 60 * 1000);
-      const auctionYear = expectedAuctionDate.getFullYear();
-      const auctionMonth = expectedAuctionDate.getMonth() + 1;
+  const projectionMonthly: Record<string, { count: number, revenue: number, types: { calf: number, preg: number } }> = {};
+  
+  const addProjection = (date: Date, type: 'calf' | 'preg') => {
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1; // 1-12
+      const key = `${year}年${month}月`;
+      if (!projectionMonthly[key]) projectionMonthly[key] = { count: 0, revenue: 0, types: { calf: 0, preg: 0 } };
+      projectionMonthly[key].count += 1;
+      projectionMonthly[key].revenue += estimatedPrice;
+      projectionMonthly[key].types[type] += 1;
+  };
 
-      if (auctionYear === currentYear) {
-          currentYearExpectedCount++;
-      } else if (auctionYear === nextYear) {
-          nextYearExpectedCount++;
-      }
-
-      const monthKey = `${auctionYear}年${auctionMonth}月`;
-      expectedAuctionMonths[monthKey] = (expectedAuctionMonths[monthKey] || 0) + 1;
+  // 1. Unsold calves (Wait 9 months after birth approx)
+  calves.filter(c => !c.isRemoved && (!c.price || c.price === 0)).forEach(c => {
+      const saleDate = new Date(c.birthDate);
+      saleDate.setMonth(saleDate.getMonth() + 9);
+      addProjection(saleDate, 'calf');
   });
 
-  const currentYearExpectedSales = currentYearExpectedCount * avgPrice;
-  const nextYearExpectedSales = nextYearExpectedCount * avgPrice;
+  // 2. Pregnant / Inseminated Cows (expecting calves, 10 months after calving = approx 19-20 months after insemination actually)
+  cows.filter(c => [BreedingStatus.PREGNANT, BreedingStatus.CALVING_SOON, BreedingStatus.INSEMINATED].includes(c.status) && !c.isRemoved).forEach(c => {
+      if (c.expectedCalvingDate) {
+          const saleDate = new Date(c.expectedCalvingDate);
+          saleDate.setMonth(saleDate.getMonth() + 9);
+          addProjection(saleDate, 'preg');
+      }
+  });
 
-  const sortedExpectedMonths = Object.entries(expectedAuctionMonths)
-      .sort((a, b) => {
-          const [aYear, aMonth] = a[0].replace('月', '').split('年').map(Number);
-          const [bYear, bMonth] = b[0].replace('月', '').split('年').map(Number);
-          if (aYear !== bYear) return aYear - bYear;
-          return aMonth - bMonth;
-      });
+  const projectionChartData = Object.keys(projectionMonthly).sort((a, b) => {
+      const [aY, aM] = a.replace('月','').split('年').map(Number);
+      const [bY, bM] = b.replace('月','').split('年').map(Number);
+      if (aY !== bY) return aY - bY;
+      return aM - bM;
+  }).map(k => ({
+      name: k,
+      '販売予定(頭)': projectionMonthly[k].count,
+      '売上予測(万円)': Math.round(projectionMonthly[k].revenue / 10000),
+      calfCount: projectionMonthly[k].types.calf,
+      pregCount: projectionMonthly[k].types.preg
+  })).filter(item => {
+      const [y] = item.name.split('年').map(Number);
+      return y >= new Date().getFullYear(); // Only show future to current
+  }).slice(0, 18); // Show up to 18 visible months
+
+  const currentYear = new Date().getFullYear();
+  const nextYear = currentYear + 1;
+  let currentYearExpectedCount = 0;
+  let nextYearExpectedCount = 0;
+  let currentYearExpectedSales = 0;
+  let nextYearExpectedSales = 0;
+
+  projectionChartData.forEach(item => {
+      const y = Number(item.name.split('年')[0]);
+      if (y === currentYear) {
+          currentYearExpectedCount += item['販売予定(頭)'];
+          currentYearExpectedSales += item['売上予測(万円)'] * 10000;
+      } else if (y === nextYear) {
+          nextYearExpectedCount += item['販売予定(頭)'];
+          nextYearExpectedSales += item['売上予測(万円)'] * 10000;
+      }
+  });
 
   const handleReset = () => { if(window.confirm('販売データをリセットしますか？')) onResetData(); };
 
@@ -177,40 +205,50 @@ export const Analytics: React.FC<AnalyticsProps> = ({ cows, calves, onResetData 
           </div>
       </div>
 
-      {/* Sales Forecast */}
-      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-4">
-          <h3 className="font-bold text-gray-700 text-sm border-b pb-2">売上予測 (生まれている牛のみ)</h3>
+      {/* Revenue Projection (Future) */}
+      <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
+          <div className="flex justify-between items-center border-b pb-2">
+              <h3 className="font-bold text-gray-700 text-md flex items-center gap-2"><TrendingUp size={18} className="text-wagyu-600"/> 売上・経営予測</h3>
+              <div className="text-xs text-gray-400">予想単価: {(estimatedPrice/10000).toLocaleString()}万円</div>
+          </div>
           
           <div className="grid grid-cols-2 gap-4">
-              <div>
-                  <div className="text-xs text-gray-500 mb-1">{currentYear}年 (1月〜12月)</div>
-                  <div className="text-xl font-bold text-blue-600">¥{(currentYearExpectedSales/10000).toFixed(0)}万</div>
-                  <div className="text-xs text-gray-400 mt-1">予定頭数: {currentYearExpectedCount}頭</div>
+              <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                  <div className="text-xs text-blue-600 font-bold mb-1">{currentYear}年 (合計)</div>
+                  <div className="text-xl font-black text-blue-700">¥{(currentYearExpectedSales/10000).toLocaleString()}<span className="text-sm font-normal ml-1">万</span></div>
+                  <div className="text-xs text-blue-500 mt-1">予定: {currentYearExpectedCount}頭</div>
               </div>
-              <div>
-                  <div className="text-xs text-gray-500 mb-1">{nextYear}年 (1月〜12月)</div>
-                  <div className="text-xl font-bold text-green-600">¥{(nextYearExpectedSales/10000).toFixed(0)}万</div>
-                  <div className="text-xs text-gray-400 mt-1">予定頭数: {nextYearExpectedCount}頭</div>
+              <div className="bg-green-50 p-3 rounded-lg border border-green-100">
+                  <div className="text-xs text-green-600 font-bold mb-1">{nextYear}年 (合計)</div>
+                  <div className="text-xl font-black text-green-700">¥{(nextYearExpectedSales/10000).toLocaleString()}<span className="text-sm font-normal ml-1">万</span></div>
+                  <div className="text-xs text-green-500 mt-1">予定: {nextYearExpectedCount}頭</div>
               </div>
           </div>
 
-          {sortedExpectedMonths.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-gray-100">
-                  <div className="text-xs font-bold text-gray-500 mb-2">上場予定月 (生後9ヶ月想定)</div>
-                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                      {sortedExpectedMonths.map(([month, count], idx) => (
-                          <div key={idx} className="bg-gray-50 border border-gray-200 rounded-lg p-2 min-w-[80px] text-center flex-shrink-0">
-                              <div className="text-xs text-gray-500">{month}</div>
-                              <div className="font-bold text-gray-800">{count}頭</div>
-                          </div>
-                      ))}
-                  </div>
+          {projectionChartData.length > 0 ? (
+              <div className="h-64 mt-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={projectionChartData} margin={{top: 10, right: 10, left: -20, bottom: 0}}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10}} />
+                          <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{fontSize: 10}} />
+                          <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{fontSize: 10}} />
+                          <Tooltip 
+                            contentStyle={{borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'}}
+                          />
+                          <Bar yAxisId="left" dataKey="calfCount" name="生後(頭)" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} barSize={20} />
+                          <Bar yAxisId="left" dataKey="pregCount" name="胎児(頭)" stackId="a" fill="#93c5fd" radius={[4, 4, 0, 0]} barSize={20} />
+                          <Line yAxisId="right" type="monotone" dataKey="売上予測(万円)" stroke="#eab308" strokeWidth={3} dot={{r: 4}} />
+                      </ComposedChart>
+                  </ResponsiveContainer>
               </div>
+          ) : (
+              <div className="text-center text-sm text-gray-400 py-6">売上予測データがありません。種付けや分娩を記録すると表示されます。</div>
           )}
       </div>
 
       <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm h-72">
-          <h3 className="font-bold text-gray-700 mb-4 text-sm">平均販売価格推移 (万円)</h3>
+          <h3 className="font-bold text-gray-700 mb-4 text-sm">過去の販売価格推移 (万円)</h3>
           {chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData}>

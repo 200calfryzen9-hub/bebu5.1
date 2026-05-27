@@ -314,7 +314,16 @@ export const CowDetail: React.FC<CowDetailProps> = ({
             <span className="font-bold text-sm">妊娠鑑定</span>
         </button>
         <button 
-            onClick={() => { setCalvingDate(todayStr); setShowCalvingModal(true); }}
+            onClick={() => { 
+                setCalvingDate(todayStr); 
+                const lastInsem = cow.events.filter(e => e.type === EventType.INSEMINATION).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+                if (lastInsem && lastInsem.relatedId) {
+                    setCalvingBull(lastInsem.relatedId);
+                } else {
+                    setCalvingBull('');
+                }
+                setShowCalvingModal(true); 
+            }}
             className="flex flex-col items-center justify-center p-3 bg-pink-500 text-white rounded-xl shadow-lg active:bg-pink-600 transition-colors"
         >
             <Baby size={24} className="mb-1" />

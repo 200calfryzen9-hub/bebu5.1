@@ -326,7 +326,7 @@ export default function App() {
           handleAddCalf(newCalf);
           handleCalfClick(newCalf.id); // Open it immediately for editing
       }} />; break;
-      case 'analytics': content = ( <Analytics cows={cows} calves={calves} onResetData={handleResetSalesData} /> ); break;
+      case 'analytics': content = ( <Analytics cows={cows} calves={calves} settings={settings} onResetData={handleResetSalesData} /> ); break;
       case 'settings': content = ( <Settings settings={settings} onSave={setSettings} cows={cows} calves={calves} generalEvents={generalEvents} bullList={bullList} onImportCows={handleImportCows} onRestoreBackup={(restoredCows, restoredCalves, restoredSettings, restoredGeneralEvents, restoredBullList) => { setCows(restoredCows); setCalves(restoredCalves); setSettings(restoredSettings); if(restoredGeneralEvents) setGeneralEvents(restoredGeneralEvents); if(restoredBullList) setBullList(restoredBullList); }} /> ); break;
       default: content = ( <Dashboard cows={cows} alerts={alerts} onCowClick={handleCowClick} generalEvents={generalEvents} onAddGeneralEvent={handleAddGeneralEvent} /> );
     }

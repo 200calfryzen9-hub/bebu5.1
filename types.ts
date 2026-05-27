@@ -105,6 +105,7 @@ export interface Settings {
   alertHeiferCalvingSoonDays?: number; // Highlight PINK if heifer (first time) calving within this days
   sync: SyncSettings;
   defaultCalfTodos?: string[]; // Todo list to be automatically added to new calves
+  estimatedCalfPrice?: number; // Estimated average calf auction price
 }
 
 export interface DashboardAlert {
