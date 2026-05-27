@@ -310,10 +310,10 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
         <head>
             <title>繁殖検診リスト (${todayStr})</title>
             <style>
-                body { font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif; font-size: 16pt; font-weight: bold; color: #000; margin: 0; padding: 20px; }
-                h3 { font-size: 18pt; margin-top: 30px; margin-bottom: 10px; border-bottom: 2px solid #000; padding-bottom: 4px; }
-                table { width: 100%; border-collapse: collapse; margin-bottom: 30px; table-layout: fixed; }
-                th, td { border: 2px solid #000; padding: 8px 4px; text-align: center; word-wrap: break-word; vertical-align: middle; }
+                body { font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif; font-size: 11pt; font-weight: bold; color: #000; margin: 0; padding: 10px; line-height: 1.3; }
+                h3 { font-size: 14pt; margin-top: 20px; margin-bottom: 8px; border-bottom: 2px solid #000; padding-bottom: 4px; page-break-after: avoid; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 20px; table-layout: fixed; }
+                th, td { border: 1px solid #000; padding: 5px 3px; text-align: center; word-wrap: break-word; vertical-align: middle; }
                 th { background-color: #f0f0f0; }
                 thead { display: table-header-group; }
                 tr { page-break-inside: avoid; }
@@ -324,7 +324,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
             </style>
         </head>
         <body>
-            <h2 style="text-align:center; font-size: 22pt; margin-bottom: 30px;">繁殖検診リスト (${todayStr})</h2>
+            <h2 style="text-align:center; font-size: 16pt; margin-bottom: 20px;">繁殖検診リスト (${todayStr})</h2>
         `;
 
         const renderTable = (title: string, headers: { label: string, width: string }[], rows: string[][]) => {
