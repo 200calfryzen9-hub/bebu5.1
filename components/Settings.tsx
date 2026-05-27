@@ -320,10 +320,15 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
                 @media print {
                     @page { size: A4 portrait; margin: 10mm; }
                     body { padding: 0; }
+                    .no-print { display: none !important; }
                 }
             </style>
         </head>
         <body>
+            <div class="no-print" style="margin-bottom: 20px; text-align: center; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6;">
+                <button onclick="window.print()" style="padding: 10px 24px; font-size: 14pt; margin-right: 15px; cursor: pointer; background: #4f46e5; color: white; border: none; border-radius: 6px; font-weight: bold;">🖨️ 印刷する</button>
+                <button onclick="window.close()" style="padding: 10px 24px; font-size: 14pt; cursor: pointer; background: #ef4444; color: white; border: none; border-radius: 6px; font-weight: bold;">✕ 閉じる (戻る)</button>
+            </div>
             <h2 style="text-align:center; font-size: 16pt; margin-bottom: 20px;">繁殖検診リスト (${todayStr})</h2>
         `;
 
@@ -346,9 +351,18 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
             return t;
         };
 
+        const formatName = (name: string) => {
+            const cleanName = (name || '').replace(/\s+/g, '');
+            if (cleanName.length > 7) return `<span style="font-size: 7.5pt; white-space: nowrap; letter-spacing: -1px;">${cleanName}</span>`;
+            if (cleanName.length > 6) return `<span style="font-size: 8pt; white-space: nowrap; letter-spacing: -0.5px;">${cleanName}</span>`;
+            if (cleanName.length > 5) return `<span style="font-size: 9pt; white-space: nowrap;">${cleanName}</span>`;
+            if (cleanName.length > 4) return `<span style="font-size: 10pt; white-space: nowrap;">${cleanName}</span>`;
+            return cleanName;
+        };
+
         // 1. 妊娠鑑定リスト
         const g1Rows = group1.map(cow => [
-            getEarTagLast5(cow.earTag), (cow.name || '').replace(/\s+/g, ''),
+            getEarTagLast5(cow.earTag), formatName(cow.name || ''),
             cow.lastInseminationDate ? getDaysBetween(cow.lastInseminationDate).toString() : '-',
             formatToWareki(cow.lastCalvingDate),
             cow.lastCalvingDate ? getDaysBetween(cow.lastCalvingDate).toString() : '-',
@@ -369,7 +383,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
 
         // 2. 未受精リスト
         const g2Rows = group2.map(cow => [
-            getEarTagLast5(cow.earTag), (cow.name || '').replace(/\s+/g, ''),
+            getEarTagLast5(cow.earTag), formatName(cow.name || ''),
             cow.lastCalvingDate ? getDaysBetween(cow.lastCalvingDate).toString() : '-',
             formatToWareki(cow.lastCalvingDate), ''
         ]);
@@ -386,26 +400,29 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
 
         // 3. 空胎牛リスト（AI有り）
         const g3Rows = group3.map(cow => [
-            getEarTagLast5(cow.earTag), (cow.name || '').replace(/\s+/g, ''),
+            getEarTagLast5(cow.earTag), formatName(cow.name || ''),
             cow.lastCalvingDate ? getDaysBetween(cow.lastCalvingDate).toString() : '-',
             formatToWareki(cow.lastCalvingDate),
-            getAiCountSinceLastCalving(cow).toString(), ''
+            formatToWareki(cow.lastInseminationDate),
+            cow.lastInseminationDate ? getDaysBetween(cow.lastInseminationDate).toString() : '-',
+            ''
         ]);
         html += renderTable(
             "【3. 空胎牛リスト（AI有り）】", 
             [
                 { label: "番号", width: "12%" }, 
                 { label: "名前", width: "16%" }, 
-                { label: "分娩後", width: "12%" }, 
-                { label: "最終分娩", width: "20%" }, 
-                { label: "AI回数", width: "10%" }, 
-                { label: "メモ", width: "30%" }
+                { label: "分娩後日", width: "12%" }, 
+                { label: "最終分娩", width: "17%" }, 
+                { label: "最終種付", width: "17%" }, 
+                { label: "AI後日", width: "10%" }, 
+                { label: "メモ", width: "16%" }
             ], g3Rows
         );
 
         // 4. 後1か月で分娩予定
         const g4Rows = group4.map(cow => [
-            getEarTagLast5(cow.earTag), (cow.name || '').replace(/\s+/g, ''),
+            getEarTagLast5(cow.earTag), formatName(cow.name || ''),
             getParity(cow).toString(),
             formatToWareki(cow.lastInseminationDate),
             formatToWareki(cow.expectedCalvingDate),
@@ -427,7 +444,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
 
         // 5. それ以外の牛
         const g5Rows = group5.map(cow => [
-            getEarTagLast5(cow.earTag), (cow.name || '').replace(/\s+/g, ''),
+            getEarTagLast5(cow.earTag), formatName(cow.name || ''),
             formatToWareki(cow.lastCalvingDate),
             formatToWareki(cow.lastInseminationDate),
             getPregnancyCheckStatus(cow),
