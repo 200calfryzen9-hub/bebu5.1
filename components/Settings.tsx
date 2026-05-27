@@ -280,21 +280,21 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
             
             const aiCount = getAiCountSinceLastCalving(cow);
 
-            // 4. 後1か月で分娩予定
-            if ((cow.status === BreedingStatus.PREGNANT || cow.status === BreedingStatus.CALVING_SOON) && daysToCalving !== null && daysToCalving <= 30) {
+            // 4. 後1か月で分娩予定 (鑑定して後1か月で生む牛、種付けして鑑定はしていないが予定日が1か月以内)
+            if ((cow.status === BreedingStatus.PREGNANT || cow.status === BreedingStatus.CALVING_SOON || cow.status === BreedingStatus.INSEMINATED) && daysToCalving !== null && daysToCalving <= 30) {
                 group4.push(cow);
             }
             // 1. 妊娠鑑定リスト (AI後35日以降)
             else if (cow.status === BreedingStatus.INSEMINATED && cow.lastInseminationDate && aiDays >= 35) {
                 group1.push(cow);
             }
-            // 2. 未受精リスト (分娩後40日以降、AI無し)
-            else if ((cow.status === BreedingStatus.EMPTY || cow.status === BreedingStatus.RECOVERY) && cow.lastCalvingDate && openDays >= 40 && aiCount === 0) {
-                group2.push(cow);
-            }
-            // 3. 空胎牛リスト（AI有り）
-            else if ((cow.status === BreedingStatus.EMPTY || cow.status === BreedingStatus.RECOVERY) && aiCount > 0) {
+            // 3. 空胎牛リスト（AI有り / 鑑定待ち含む）
+            else if (cow.status === BreedingStatus.INSEMINATED || ((cow.status === BreedingStatus.EMPTY || cow.status === BreedingStatus.RECOVERY) && aiCount > 0)) {
                 group3.push(cow);
+            }
+            // 2. 未受精リスト (分娩後0日以降、分娩日が分からなくて種付けしていない牛)
+            else if ((cow.status === BreedingStatus.EMPTY || cow.status === BreedingStatus.RECOVERY) && aiCount === 0) {
+                group2.push(cow);
             }
             // 5. それ以外の牛
             else {
@@ -306,7 +306,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
         
         // 1. 妊娠鑑定リスト
         csvContent += "【1. 妊娠鑑定リスト (AI後35日以降)】\n";
-        const header1 = "番号(下5桁),名前,最終AI後日数,最終分娩日,分娩後日数,最終AI日,メモ\n";
+        const header1 = "番号(下5桁),名前,AI後日数,最終分娩日,分娩後日数,最終AI日,メモ\n";
         csvContent += header1;
         group1.forEach((cow, i) => {
             if (i > 0 && i % 40 === 0) csvContent += "\n" + header1;
@@ -317,7 +317,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
         csvContent += "\n\n";
 
         // 2. 未受精リスト
-        csvContent += "【2. 未受精リスト (分娩後40日以降)】\n";
+        csvContent += "【2. 未受精リスト (分娩後0日以降)】\n";
         const header2 = "番号(下5桁),名前,分娩後日数,最終分娩日,メモ\n";
         csvContent += header2;
         group2.forEach((cow, i) => {
