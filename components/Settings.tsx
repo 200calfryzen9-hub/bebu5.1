@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Settings as SettingsType, Cow, BreedingStatus, EventType, BreedingEvent, Calf, GeneralEvent } from '../types';
-import { Save, Download, Upload, FileText, Database, HelpCircle, AlertCircle, Share2, Wifi, RefreshCw, Palette, X, Lock, ListTodo, Trash2, Plus, CheckCircle2 } from 'lucide-react';
+import { Save, Download, Upload, FileText, Database, HelpCircle, AlertCircle, Share2, Wifi, RefreshCw, Palette, X, Lock, ListTodo, Trash2, Plus, CheckCircle2, Printer } from 'lucide-react';
 import { calculateExpectedCalvingDate, recalculateCowStatus } from '../utils/breedingService';
 import { initFirebase } from '../utils/firebaseService';
 
@@ -227,8 +227,8 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
         URL.revokeObjectURL(calfUrl);
     };
 
-    // Export Breeding Checkup Data as CSV
-    const handleExportBreedingCheckupCsv = () => {
+    // Print Breeding Checkup Data (HTML format for A4)
+    const handlePrintBreedingCheckup = () => {
         const today = new Date();
         const getDaysBetween = (dateStr: string) => {
             if (!dateStr) return 0;
@@ -302,78 +302,162 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
             }
         });
 
-        let csvContent = "";
-        
+        const todayStr = new Intl.DateTimeFormat('ja-JP').format(today);
+
+        let html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>繁殖検診リスト (${todayStr})</title>
+            <style>
+                body { font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif; font-size: 16pt; font-weight: bold; color: #000; margin: 0; padding: 20px; }
+                h3 { font-size: 18pt; margin-top: 30px; margin-bottom: 10px; border-bottom: 2px solid #000; padding-bottom: 4px; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 30px; table-layout: fixed; }
+                th, td { border: 2px solid #000; padding: 8px 4px; text-align: center; word-wrap: break-word; vertical-align: middle; }
+                th { background-color: #f0f0f0; }
+                thead { display: table-header-group; }
+                tr { page-break-inside: avoid; }
+                @media print {
+                    @page { size: A4 portrait; margin: 10mm; }
+                    body { padding: 0; }
+                }
+            </style>
+        </head>
+        <body>
+            <h2 style="text-align:center; font-size: 22pt; margin-bottom: 30px;">繁殖検診リスト (${todayStr})</h2>
+        `;
+
+        const renderTable = (title: string, headers: { label: string, width: string }[], rows: string[][]) => {
+            if (rows.length === 0) return '';
+            let t = `<h3>${title}</h3>`;
+            t += `<table><thead><tr>`;
+            headers.forEach(h => {
+                t += `<th style="width: ${h.width};">${h.label}</th>`;
+            });
+            t += `</tr></thead><tbody>`;
+            rows.forEach(row => {
+                t += `<tr>`;
+                row.forEach(cell => {
+                    t += `<td>${cell}</td>`;
+                });
+                t += `</tr>`;
+            });
+            t += `</tbody></table>`;
+            return t;
+        };
+
         // 1. 妊娠鑑定リスト
-        csvContent += "【1. 妊娠鑑定リスト (AI後35日以降)】\n";
-        const header1 = "番号(下5桁),名前,AI後日数,最終分娩日,分娩後日数,最終AI日,メモ\n";
-        csvContent += header1;
-        group1.forEach((cow, i) => {
-            if (i > 0 && i % 40 === 0) csvContent += "\n" + header1;
-            const openDays = cow.lastCalvingDate ? getDaysBetween(cow.lastCalvingDate) : '-';
-            const aiDays = cow.lastInseminationDate ? getDaysBetween(cow.lastInseminationDate) : '-';
-            csvContent += `="${getEarTagLast5(cow.earTag)}","${(cow.name || '').replace(/\s+/g, '')}","${aiDays}","${formatToWareki(cow.lastCalvingDate)}","${openDays}","${formatToWareki(cow.lastInseminationDate)}",""\n`;
-        });
-        csvContent += "\n\n";
+        const g1Rows = group1.map(cow => [
+            getEarTagLast5(cow.earTag), (cow.name || '').replace(/\s+/g, ''),
+            cow.lastInseminationDate ? getDaysBetween(cow.lastInseminationDate).toString() : '-',
+            formatToWareki(cow.lastCalvingDate),
+            cow.lastCalvingDate ? getDaysBetween(cow.lastCalvingDate).toString() : '-',
+            formatToWareki(cow.lastInseminationDate), ''
+        ]);
+        html += renderTable(
+            "【1. 妊娠鑑定リスト (AI後35日以降)】", 
+            [
+                { label: "番号", width: "12%" }, 
+                { label: "名前", width: "14%" }, 
+                { label: "AI後", width: "7%" }, 
+                { label: "最終分娩", width: "17%" }, 
+                { label: "分娩後", width: "7%" }, 
+                { label: "最終AI", width: "17%" }, 
+                { label: "メモ", width: "26%" }
+            ], g1Rows
+        );
 
         // 2. 未受精リスト
-        csvContent += "【2. 未受精リスト (分娩後0日以降)】\n";
-        const header2 = "番号(下5桁),名前,分娩後日数,最終分娩日,メモ\n";
-        csvContent += header2;
-        group2.forEach((cow, i) => {
-            if (i > 0 && i % 40 === 0) csvContent += "\n" + header2;
-            const openDays = cow.lastCalvingDate ? getDaysBetween(cow.lastCalvingDate) : '-';
-            csvContent += `="${getEarTagLast5(cow.earTag)}","${(cow.name || '').replace(/\s+/g, '')}","${openDays}","${formatToWareki(cow.lastCalvingDate)}",""\n`;
-        });
-        csvContent += "\n\n";
+        const g2Rows = group2.map(cow => [
+            getEarTagLast5(cow.earTag), (cow.name || '').replace(/\s+/g, ''),
+            cow.lastCalvingDate ? getDaysBetween(cow.lastCalvingDate).toString() : '-',
+            formatToWareki(cow.lastCalvingDate), ''
+        ]);
+        html += renderTable(
+            "【2. 未受精リスト (分娩後0日以降)】", 
+            [
+                { label: "番号", width: "15%" }, 
+                { label: "名前", width: "20%" }, 
+                { label: "分娩後", width: "10%" }, 
+                { label: "最終分娩", width: "20%" }, 
+                { label: "メモ", width: "35%" }
+            ], g2Rows
+        );
 
         // 3. 空胎牛リスト（AI有り）
-        csvContent += "【3. 空胎牛リスト（AI有り）】\n";
-        const header3 = "番号(下5桁),名前,分娩後日数,最終分娩日,AI回数,メモ\n";
-        csvContent += header3;
-        group3.forEach((cow, i) => {
-            if (i > 0 && i % 40 === 0) csvContent += "\n" + header3;
-            const openDays = cow.lastCalvingDate ? getDaysBetween(cow.lastCalvingDate) : '-';
-            const aiCount = getAiCountSinceLastCalving(cow);
-            csvContent += `="${getEarTagLast5(cow.earTag)}","${(cow.name || '').replace(/\s+/g, '')}","${openDays}","${formatToWareki(cow.lastCalvingDate)}","${aiCount}",""\n`;
-        });
-        csvContent += "\n\n";
+        const g3Rows = group3.map(cow => [
+            getEarTagLast5(cow.earTag), (cow.name || '').replace(/\s+/g, ''),
+            cow.lastCalvingDate ? getDaysBetween(cow.lastCalvingDate).toString() : '-',
+            formatToWareki(cow.lastCalvingDate),
+            getAiCountSinceLastCalving(cow).toString(), ''
+        ]);
+        html += renderTable(
+            "【3. 空胎牛リスト（AI有り）】", 
+            [
+                { label: "番号", width: "12%" }, 
+                { label: "名前", width: "16%" }, 
+                { label: "分娩後", width: "12%" }, 
+                { label: "最終分娩", width: "20%" }, 
+                { label: "AI回数", width: "10%" }, 
+                { label: "メモ", width: "30%" }
+            ], g3Rows
+        );
 
         // 4. 後1か月で分娩予定
-        csvContent += "【4. 後1か月で分娩予定】\n";
-        const header4 = "番号(下5桁),名前,産次,最終AI日,分娩予定日,分娩まで日数,メモ\n";
-        csvContent += header4;
-        group4.forEach((cow, i) => {
-            if (i > 0 && i % 40 === 0) csvContent += "\n" + header4;
-            const daysToCalving = cow.expectedCalvingDate 
-                ? Math.ceil((new Date(cow.expectedCalvingDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-                : '-';
-            csvContent += `="${getEarTagLast5(cow.earTag)}","${(cow.name || '').replace(/\s+/g, '')}","${getParity(cow)}","${formatToWareki(cow.lastInseminationDate)}","${formatToWareki(cow.expectedCalvingDate)}","${daysToCalving}",""\n`;
-        });
-        csvContent += "\n\n";
+        const g4Rows = group4.map(cow => [
+            getEarTagLast5(cow.earTag), (cow.name || '').replace(/\s+/g, ''),
+            getParity(cow).toString(),
+            formatToWareki(cow.lastInseminationDate),
+            formatToWareki(cow.expectedCalvingDate),
+            cow.expectedCalvingDate ? Math.ceil((new Date(cow.expectedCalvingDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24)).toString() : '-',
+            ''
+        ]);
+        html += renderTable(
+            "【4. 後1か月で分娩予定】", 
+            [
+                { label: "番号", width: "12%" }, 
+                { label: "名前", width: "14%" }, 
+                { label: "産次", width: "7%" }, 
+                { label: "最終AI", width: "17%" }, 
+                { label: "分娩予定", width: "17%" }, 
+                { label: "分娩まで", width: "7%" }, 
+                { label: "メモ", width: "26%" }
+            ], g4Rows
+        );
 
         // 5. それ以外の牛
-        csvContent += "【5. それ以外の牛】\n";
-        const header5 = "番号(下5桁),名前,最終分娩日,最終AI日,鑑定＋－,空胎日数,メモ\n";
-        csvContent += header5;
-        group5.forEach((cow, i) => {
-            if (i > 0 && i % 40 === 0) csvContent += "\n" + header5;
-            const openDays = cow.lastCalvingDate ? getDaysBetween(cow.lastCalvingDate) : '-';
-            csvContent += `="${getEarTagLast5(cow.earTag)}","${(cow.name || '').replace(/\s+/g, '')}","${formatToWareki(cow.lastCalvingDate)}","${formatToWareki(cow.lastInseminationDate)}","${getPregnancyCheckStatus(cow)}","${openDays}",""\n`;
-        });
+        const g5Rows = group5.map(cow => [
+            getEarTagLast5(cow.earTag), (cow.name || '').replace(/\s+/g, ''),
+            formatToWareki(cow.lastCalvingDate),
+            formatToWareki(cow.lastInseminationDate),
+            getPregnancyCheckStatus(cow),
+            cow.lastCalvingDate ? getDaysBetween(cow.lastCalvingDate).toString() : '-',
+            ''
+        ]);
+        html += renderTable(
+            "【5. それ以外の牛】", 
+            [
+                { label: "番号", width: "12%" }, 
+                { label: "名前", width: "14%" }, 
+                { label: "最終分娩", width: "17%" }, 
+                { label: "最終AI", width: "17%" }, 
+                { label: "鑑定", width: "7%" }, 
+                { label: "空胎日数", width: "7%" }, 
+                { label: "メモ", width: "26%" }
+            ], g5Rows
+        );
 
-        // Windows用Shift_JISにするのは難しいのでBOM付きUTF-8にする
-        const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
-        const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", `wagyumate_breeding_checkup_${new Date().toISOString().slice(0,10)}.csv`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        html += `</body></html>`;
+
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+            printWindow.document.write(html);
+            printWindow.document.close();
+            // Wait for styles/fonts to load
+            setTimeout(() => {
+                printWindow.print();
+            }, 500);
+        }
     };
 
     // Import Data from JSON (Backup Restore)
@@ -789,11 +873,11 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
                              </button>
                          </div>
                          <button 
-                            onClick={handleExportBreedingCheckupCsv}
+                            onClick={handlePrintBreedingCheckup}
                             className="w-full border-2 border-indigo-500 text-indigo-700 bg-white font-bold py-3 text-sm rounded-xl flex items-center justify-center gap-2 hover:bg-indigo-50 shadow-sm transition-colors"
                          >
-                             <FileText size={18} className="text-indigo-500" />
-                             繁殖検診用抽出CSV (鑑定/空胎/分娩前/受胎)
+                             <Printer size={18} className="text-indigo-500" />
+                             繁殖検診用リストを印刷 (A4対応)
                          </button>
                      </div>
 
