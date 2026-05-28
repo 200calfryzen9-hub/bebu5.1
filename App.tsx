@@ -287,6 +287,7 @@ export default function App() {
             cow={targetCow} 
             allCows={cows} 
             calves={calves.filter(c => c.motherId === targetCow.id)} 
+            settings={settings}
             onBack={handleBack} 
             onAddEvent={handleAddEvent}
             onDeleteEvent={handleDeleteEvent} 

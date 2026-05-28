@@ -16,6 +16,33 @@ interface SettingsProps {
     onRestoreBackup?: (cows: Cow[], calves: Calf[], settings: SettingsType, generalEvents: GeneralEvent[], bullList: string[]) => void;
 }
 
+const COLOR_PALETTE = [
+    { label: '白 (デフォルト/標準)', value: 'bg-white' },
+    { label: 'グレー (薄め)', value: 'bg-gray-50' },
+    { label: 'グレー (やや濃い)', value: 'bg-gray-100' },
+    { label: '赤 (薄い)', value: 'bg-red-50' },
+    { label: '赤 (濃い)', value: 'bg-red-200' },
+    { label: 'オレンジ (薄い)', value: 'bg-orange-50' },
+    { label: '琥珀', value: 'bg-amber-100' },
+    { label: '金 (ゴールド)', value: 'bg-yellow-200' }, 
+    { label: '黄 (薄い)', value: 'bg-yellow-50' },
+    { label: 'ライム', value: 'bg-lime-100' },
+    { label: '緑 (薄い)', value: 'bg-green-50' },
+    { label: '緑 (濃い)', value: 'bg-green-200' },
+    { label: 'エメラルド', value: 'bg-emerald-100' },
+    { label: 'ティール', value: 'bg-teal-50' },
+    { label: 'シアン/水色 (薄い)', value: 'bg-cyan-50' },
+    { label: '青 (薄い)', value: 'bg-blue-50' },
+    { label: '青 (濃い)', value: 'bg-blue-200' },
+    { label: 'インディゴ', value: 'bg-indigo-50' },
+    { label: '紫 (薄い)', value: 'bg-purple-50' },
+    { label: '紫 (濃い)', value: 'bg-purple-200' },
+    { label: 'フクシャ', value: 'bg-fuchsia-50' },
+    { label: 'ピンク (薄い)', value: 'bg-pink-50' },
+    { label: 'ピンク (濃い)', value: 'bg-pink-200' },
+    { label: 'ローズ', value: 'bg-rose-50' },
+];
+
 export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calves = [], generalEvents = [], bullList = [], onImportCows, onRestoreBackup }) => {
     const [csvText, setCsvText] = useState('');
     const [showImportModal, setShowImportModal] = useState(false);
@@ -621,6 +648,16 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
         alert('設定を保存しました');
     };
 
+    const updateStatusColor = (status: BreedingStatus, colorStr: string) => {
+        setLocalSettings(prev => ({
+            ...prev,
+            statusColors: {
+                ...(prev.statusColors || {}),
+                [status]: colorStr
+            }
+        }));
+    };
+
     return (
         <div className="p-4 space-y-6 pb-24">
              <h1 className="text-2xl font-bold text-gray-900">設定</h1>
@@ -678,6 +715,37 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
                              <span className="text-sm">日以内になったら強調</span>
                          </div>
                          <p className="text-[10px] text-gray-400 mt-1">※初産は事故防止のため早めの準備を推奨</p>
+                     </div>
+                 </div>
+
+                 <div className="pt-6 border-t border-gray-100">
+                     <h3 className="font-bold text-md mb-4">ステータスごとの背景色カスタマイズ</h3>
+                     <p className="text-xs text-gray-500 mb-4">牛一覧で表示される各ステータスの背景色を自由に変更できます。</p>
+                     
+                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                         {[
+                             { status: BreedingStatus.EMPTY, label: '空胎', defaultVal: 'bg-white' },
+                             { status: BreedingStatus.INSEMINATED, label: '種付済/AI後', defaultVal: 'bg-blue-50' },
+                             { status: BreedingStatus.RECOVERY, label: '分娩後休養', defaultVal: 'bg-gray-50' },
+                             { status: BreedingStatus.PREGNANT, label: '妊娠確定', defaultVal: 'bg-green-50' },
+                             { status: BreedingStatus.CALVING_SOON, label: '分娩間近', defaultVal: 'bg-purple-50' }
+                         ].map(item => {
+                             const currentVal = localSettings.statusColors?.[item.status] || item.defaultVal;
+                             return (
+                                 <div key={item.status} className={`p-3 rounded-xl border flex items-center justify-between ${currentVal} border-gray-200 transition-colors`}>
+                                     <span className="font-bold text-sm text-gray-800">{item.label}</span>
+                                     <select 
+                                         value={currentVal}
+                                         onChange={(e) => updateStatusColor(item.status, e.target.value)}
+                                         className="p-1 border border-gray-300 rounded text-sm bg-white"
+                                     >
+                                         {COLOR_PALETTE.map(c => (
+                                             <option key={c.value} value={c.value}>{c.label}</option>
+                                         ))}
+                                     </select>
+                                 </div>
+                             );
+                         })}
                      </div>
                  </div>
              </div>

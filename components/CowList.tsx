@@ -115,18 +115,24 @@ export const CowList: React.FC<CowListProps> = ({ cows, onCowClick, settings, on
           return { bgClass, borderClass };
       }
 
-      // --- STATUS BASED BASE COLORS (Matching CowDetail) ---
-      if (cow.status === BreedingStatus.PREGNANT) {
-          bgClass = "bg-green-50";
-          borderClass = "border-green-200";
-      } else if (cow.status === BreedingStatus.INSEMINATED) {
-          bgClass = "bg-blue-50";
-          borderClass = "border-blue-200";
-      } else if (cow.status === BreedingStatus.RECOVERY) {
-          bgClass = "bg-gray-50";
-          borderClass = "border-gray-200";
+      // --- STATUS BASED BASE COLORS ---
+      const customBg = settings?.statusColors?.[cow.status];
+      if (customBg) {
+          bgClass = customBg;
+          // Match border roughly based on background, or just keep a solid border
+          borderClass = customBg === 'bg-white' ? 'border-gray-200' : `${customBg.replace('bg-', 'border-').replace('50', '200').replace('100', '300').replace('200', '400')}`;
+      } else {
+          // Fallbacks if no custom color set
+          if (cow.status === BreedingStatus.PREGNANT) {
+              bgClass = "bg-green-50"; borderClass = "border-green-200";
+          } else if (cow.status === BreedingStatus.INSEMINATED) {
+              bgClass = "bg-blue-50"; borderClass = "border-blue-200";
+          } else if (cow.status === BreedingStatus.RECOVERY) {
+              bgClass = "bg-gray-50"; borderClass = "border-gray-200";
+          } else if (cow.status === BreedingStatus.CALVING_SOON) { // Add fallback for calving soon status itself if not overridden by logic below
+              bgClass = "bg-purple-50"; borderClass = "border-purple-200";
+          }
       }
-      // Note: EMPTY stays white by default unless it triggers "Long Empty" alert below
 
       // --- ALERTS OVERRIDE (High Priority) ---
 

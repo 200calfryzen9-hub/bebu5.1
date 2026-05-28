@@ -10,6 +10,7 @@ export const DEFAULT_SETTINGS: Settings = {
   alertCalvingSoonDays: 30, // Highlight list purple if calving < 30 days
   alertHeiferCalvingSoonDays: 45, // Highlight list pink if heifer calving < 45 days (First time needs more prep)
   estimatedCalfPrice: 750000,
+  statusColors: {}, // Default empty, falls back to standard Tailwind classes
   sync: {
       enabled: false,
       familyId: '',

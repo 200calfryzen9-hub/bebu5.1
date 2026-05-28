@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Cow, BreedingStatus, EventType, Calf, BreedingEvent, Note } from '../types';
+import { Cow, BreedingStatus, EventType, Calf, BreedingEvent, Note, Settings as SettingsType } from '../types';
 import { ArrowLeft, Syringe, Baby, Activity, TrendingUp, History, Star, Pill, Plus, X, Trash2, Zap, Trophy, AlertTriangle, GitFork, Calendar, Pencil, Save, Dna, ShoppingBag, Stethoscope, Check, Minus, CheckCircle2, Circle } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { GESTATION_DAYS } from '../constants';
@@ -12,6 +12,7 @@ interface CowDetailProps {
   cow: Cow;
   allCows: Cow[]; // Needed for lineage
   calves: Calf[];
+  settings: SettingsType;
   onBack: () => void;
   onAddEvent: (cowId: string, event: Partial<BreedingEvent>) => void;
   onDeleteEvent?: (cowId: string, eventId: string) => void; // Optional for safety
@@ -27,7 +28,7 @@ interface CowDetailProps {
 type TabId = 'ACTION' | 'STATS' | 'HISTORY' | 'MEMO';
 
 export const CowDetail: React.FC<CowDetailProps> = ({ 
-    cow, allCows, calves, onBack, onAddEvent, onDeleteEvent, bullList, onUpdateBullList, 
+    cow, allCows, calves, settings, onBack, onAddEvent, onDeleteEvent, bullList, onUpdateBullList, 
     onDelete, onUpdate, onAddCalf, onUpdateCalf, onDeleteCalf 
 }) => {
   const [activeTab, setActiveTab] = useState<TabId>('ACTION');
@@ -103,11 +104,14 @@ export const CowDetail: React.FC<CowDetailProps> = ({
     setSelectedBull('');
   };
   const handleCalving = () => {
+      const lastInsem = cow.events.filter(e => e.type === EventType.INSEMINATION).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+      const finalBull = calvingBull || (lastInsem ? lastInsem.relatedId : '') || '不明';
+
       onAddEvent(cow.id, {
           type: EventType.CALVING,
           date: calvingDate,
-          details: `産子: ${calfSex === 'MALE' ? 'オス' : 'メス'}, 状態: ${calvingDifficulty}, 父: ${calvingBull || '不明'}`,
-          metadata: { difficulty: calvingDifficulty, calfSex, fatherName: calvingBull }
+          details: `産子: ${calfSex === 'MALE' ? 'オス' : 'メス'}, 状態: ${calvingDifficulty}, 父: ${finalBull}`,
+          metadata: { difficulty: calvingDifficulty, calfSex, fatherName: finalBull }
       });
       const newCalf: Calf = {
           id: Date.now().toString(),
@@ -115,7 +119,7 @@ export const CowDetail: React.FC<CowDetailProps> = ({
           birthDate: calvingDate,
           sex: calfSex,
           earTag: '',
-          fatherName: calvingBull || undefined
+          fatherName: finalBull === '不明' ? undefined : finalBull
       };
       onAddCalf(newCalf);
       setShowCalvingModal(false);
@@ -233,6 +237,15 @@ export const CowDetail: React.FC<CowDetailProps> = ({
   }, [showCalvingModal, cow.events]);
 
   const getStatusColor = (status: BreedingStatus) => {
+    // Custom color from settings
+    const customBg = settings?.statusColors?.[status];
+    if (customBg) {
+        let textColor = "text-gray-900"; // default dark text for custom bgs
+        let borderColor = customBg === 'bg-white' ? 'border-gray-200' : `${customBg.replace('bg-', 'border-').replace('50', '300').replace('100', '400').replace('200', '500')}`;
+        return `${customBg} ${textColor} ${borderColor}`;
+    }
+
+    // Default Fallbacks
     switch (status) {
       case BreedingStatus.EMPTY: return 'text-red-600 bg-red-50 border-red-200';
       case BreedingStatus.PREGNANT: return 'text-green-600 bg-green-50 border-green-200';
@@ -332,7 +345,7 @@ export const CowDetail: React.FC<CowDetailProps> = ({
       </div>
       <div className="grid grid-cols-2 gap-2">
         <button 
-            onClick={() => { setCidrDate(todayStr); setCidrRemovalDate(formatDate(addDays(new Date(), 9))); setShowCidrModal(true); }}
+            onClick={() => { setCidrDate(todayStr); setCidrRemovalDate(formatDate(addDays(new Date(), 14))); setShowCidrModal(true); }}
             className="flex flex-col items-center justify-center p-3 bg-purple-500 text-white rounded-xl shadow-lg active:bg-purple-600 transition-colors"
         >
             <Pill size={24} className="mb-1" />
@@ -725,7 +738,7 @@ export const CowDetail: React.FC<CowDetailProps> = ({
                       <h3 className="text-lg font-bold mb-4 text-purple-600">CIDR(トンボ)挿入</h3>
                       <label className="block text-sm font-medium text-gray-700 mb-1">挿入日</label>
                       <input type="date" value={cidrDate} onChange={(e) => setCidrDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg mb-4" />
-                      <label className="block text-sm font-medium text-gray-700 mb-1">抜去予定日 (9日後など)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">抜去予定日 (14日後など)</label>
                       <input type="date" value={cidrRemovalDate} onChange={(e) => setCidrRemovalDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg mb-6 bg-purple-50" />
                   </div>
                    <div className="p-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex flex-col gap-2">

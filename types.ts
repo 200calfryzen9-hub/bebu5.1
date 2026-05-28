@@ -95,6 +95,10 @@ export interface SyncSettings {
     firebaseConfigString: string; // Raw JSON string from Firebase Console
 }
 
+export type StatusColors = {
+  [key in BreedingStatus]?: string;
+};
+
 export interface Settings {
   targetEmptyDays: number;
   targetCalvingInterval: number;
@@ -106,6 +110,7 @@ export interface Settings {
   sync: SyncSettings;
   defaultCalfTodos?: string[]; // Todo list to be automatically added to new calves
   estimatedCalfPrice?: number; // Estimated average calf auction price
+  statusColors?: StatusColors; // Custom background colors for statuses
 }
 
 export interface DashboardAlert {

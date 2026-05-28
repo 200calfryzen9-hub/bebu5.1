@@ -157,7 +157,25 @@ export const CalfDetail: React.FC<CalfDetailProps> = ({ calf, allCows, onBack, o
                         </div>
                         <div>
                             <label className="text-xs text-gray-500 block mb-1">母牛</label>
-                            <select className="w-full p-2 border rounded-lg" value={editForm.motherId || ''} onChange={e => setEditForm({...editForm, motherId: e.target.value})}>
+                            <select 
+                                className="w-full p-2 border rounded-lg" 
+                                value={editForm.motherId || ''} 
+                                onChange={e => {
+                                    const mId = e.target.value;
+                                    const nextState = { ...editForm, motherId: mId };
+                                    if (mId && !editForm.fatherName) {
+                                        // Auto-fetch father from mother's last insemination if fatherName is empty
+                                        const motherCow = allCows.find(c => c.id === mId);
+                                        if (motherCow) {
+                                            const lastInsem = motherCow.events.filter(ev => ev.type === 'INSEMINATION').sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+                                            if (lastInsem && lastInsem.relatedId) {
+                                                nextState.fatherName = lastInsem.relatedId;
+                                            }
+                                        }
+                                    }
+                                    setEditForm(nextState);
+                                }}
+                            >
                                 <option value="">選択しない</option>
                                 {allCows.map(c => (
                                     <option key={c.id} value={c.id}>{c.name}</option>
