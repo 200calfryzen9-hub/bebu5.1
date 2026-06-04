@@ -87,6 +87,12 @@ export interface Cow {
   badges: string[]; // "Legend", "Consistent", etc.
   isRemoved?: boolean; // 抹消牛フラグ
   notes?: Note[]; // Added memo field
+  groupId?: string; // グループ(部屋)ID
+}
+
+export interface CowGroup {
+  id: string;
+  name: string;
 }
 
 export interface SyncSettings {
@@ -111,6 +117,7 @@ export interface Settings {
   defaultCalfTodos?: string[]; // Todo list to be automatically added to new calves
   estimatedCalfPrice?: number; // Estimated average calf auction price
   statusColors?: StatusColors; // Custom background colors for statuses
+  groups?: CowGroup[]; // Group settings
 }
 
 export interface DashboardAlert {

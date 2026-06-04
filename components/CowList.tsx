@@ -33,9 +33,9 @@ export const CowList: React.FC<CowListProps> = ({ cows, onCowClick, settings, on
   // Modal State
   const [showAddModal, setShowAddModal] = useState(false);
   const [newCow, setNewCow] = useState<{
-      earTag: string, name: string, birthDate: string, fatherName: string, motherFatherName: string
+      earTag: string, name: string, birthDate: string, fatherName: string, motherFatherName: string, groupId: string
   }>({
-      earTag: '', name: '', birthDate: new Date().toISOString().split('T')[0], fatherName: '', motherFatherName: ''
+      earTag: '', name: '', birthDate: new Date().toISOString().split('T')[0], fatherName: '', motherFatherName: '', groupId: ''
   });
 
   // Filter Logic
@@ -192,6 +192,7 @@ export const CowList: React.FC<CowListProps> = ({ cows, onCowClick, settings, on
            birthDate: newCow.birthDate,
            fatherName: newCow.fatherName,
            motherFatherName: newCow.motherFatherName,
+           groupId: newCow.groupId || undefined,
            status: BreedingStatus.EMPTY,
            events: [],
            badges: []
@@ -201,7 +202,7 @@ export const CowList: React.FC<CowListProps> = ({ cows, onCowClick, settings, on
       
       // Reset
       setNewCow({
-          earTag: '', name: '', birthDate: new Date().toISOString().split('T')[0], fatherName: '', motherFatherName: ''
+          earTag: '', name: '', birthDate: new Date().toISOString().split('T')[0], fatherName: '', motherFatherName: '', groupId: ''
       });
       setShowAddModal(false);
   };
@@ -464,6 +465,19 @@ export const CowList: React.FC<CowListProps> = ({ cows, onCowClick, settings, on
                                 onChange={(e) => setNewCow({...newCow, motherFatherName: e.target.value})}
                               />
                           </div>
+                      </div>
+                      <div className="mt-3">
+                          <label className="block text-sm font-bold text-gray-700 mb-1">牛群(グループ/部屋)</label>
+                          <select
+                              className="w-full p-2 border border-gray-300 rounded-lg bg-white"
+                              value={newCow.groupId}
+                              onChange={(e) => setNewCow({...newCow, groupId: e.target.value})}
+                          >
+                              <option value="">グループ未指定</option>
+                              {(settings.groups || []).map(g => (
+                                  <option key={g.id} value={g.id}>{g.name}</option>
+                              ))}
+                          </select>
                       </div>
                   </div>
                   

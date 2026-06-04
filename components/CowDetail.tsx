@@ -52,7 +52,8 @@ export const CowDetail: React.FC<CowDetailProps> = ({
       birthDate: cow.birthDate,
       fatherName: cow.fatherName,
       motherFatherName: cow.motherFatherName,
-      motherId: cow.motherId || ''
+      motherId: cow.motherId || '',
+      groupId: cow.groupId || ''
   });
 
   const [selectedCalf, setSelectedCalf] = useState<Calf | null>(null);
@@ -166,7 +167,8 @@ export const CowDetail: React.FC<CowDetailProps> = ({
           birthDate: editFormData.birthDate,
           fatherName: editFormData.fatherName,
           motherFatherName: editFormData.motherFatherName,
-          motherId: editFormData.motherId || undefined
+          motherId: editFormData.motherId || undefined,
+          groupId: editFormData.groupId || undefined
       });
       setShowEditModal(false);
   };
@@ -564,7 +566,8 @@ export const CowDetail: React.FC<CowDetailProps> = ({
                         birthDate: cow.birthDate,
                         fatherName: cow.fatherName,
                         motherFatherName: cow.motherFatherName,
-                        motherId: cow.motherId || ''
+                        motherId: cow.motherId || '',
+                        groupId: cow.groupId || ''
                     });
                     setShowEditModal(true); 
                 }} 
@@ -777,6 +780,16 @@ export const CowDetail: React.FC<CowDetailProps> = ({
                       <input className="w-full p-2 border rounded-lg" type="date" value={editFormData.birthDate} onChange={e => setEditFormData({...editFormData, birthDate: e.target.value})} />
                       <input className="w-full p-2 border rounded-lg" placeholder="父牛" value={editFormData.fatherName} onChange={e => setEditFormData({...editFormData, fatherName: e.target.value})} />
                       <input className="w-full p-2 border rounded-lg" placeholder="母の父" value={editFormData.motherFatherName} onChange={e => setEditFormData({...editFormData, motherFatherName: e.target.value})} />
+                      <select 
+                          className="w-full p-2 border rounded-lg text-gray-700" 
+                          value={editFormData.groupId} 
+                          onChange={e => setEditFormData({...editFormData, groupId: e.target.value})}
+                      >
+                          <option value="">グループ未指定</option>
+                          {(settings?.groups || []).map(g => (
+                              <option key={g.id} value={g.id}>{g.name}</option>
+                          ))}
+                      </select>
                   </div>
                   <button onClick={handleEditSave} className="w-full bg-wagyu-600 text-white font-bold py-3 rounded-xl mb-2">保存する</button>
                   <button onClick={() => setShowEditModal(false)} className="w-full bg-gray-100 text-gray-600 font-bold py-3 rounded-xl">キャンセル</button>

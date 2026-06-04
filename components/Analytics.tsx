@@ -3,16 +3,17 @@ import React, { useMemo } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LineChart, Line, ComposedChart } from 'recharts';
 import { Calf, Cow, Settings as SettingsType, BreedingStatus } from '../types';
 import { formatDateJP, calculateBreedingScore, daysBetween, parseDate } from '../utils/breedingService';
-import { GitFork, RotateCcw, Activity, TrendingUp } from 'lucide-react';
+import { GitFork, RotateCcw, Activity, TrendingUp, Database } from 'lucide-react';
 
 interface AnalyticsProps {
   cows: Cow[];
   calves: Calf[];
   settings: SettingsType;
   onResetData: () => void;
+  onCowClick?: (cowId: string) => void;
 }
 
-export const Analytics: React.FC<AnalyticsProps> = ({ cows, calves, settings, onResetData }) => {
+export const Analytics: React.FC<AnalyticsProps> = ({ cows, calves, settings, onResetData, onCowClick }) => {
   // Sales Data Processing
   const salesData = calves.filter(c => c.price && c.price > 0).map(c => {
         const dateStr = c.auctionDate || c.birthDate;
@@ -245,6 +246,103 @@ export const Analytics: React.FC<AnalyticsProps> = ({ cows, calves, settings, on
           ) : (
               <div className="text-center text-sm text-gray-400 py-6">売上予測データがありません。種付けや分娩を記録すると表示されます。</div>
           )}
+      </div>
+
+      {/* Group Visualization */}
+      <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
+          <div className="flex justify-between items-center border-b pb-2">
+              <h3 className="font-bold text-gray-700 text-md flex items-center gap-2">
+                  <Database size={18} className="text-wagyu-600"/> 
+                  グループ（部屋）別の状況
+              </h3>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(settings?.groups || []).map(group => {
+                  const groupCows = cows.filter(c => !c.isRemoved && c.groupId === group.id);
+                  if (groupCows.length === 0) return null; // Skip empty groups visually
+
+                  return (
+                      <div key={group.id} className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+                          <div className="bg-wagyu-600 text-white p-3 font-bold text-sm flex justify-between items-center">
+                              <span>{group.name}</span>
+                              <span className="text-xs bg-wagyu-700 px-2 py-0.5 rounded-full">{groupCows.length}頭</span>
+                          </div>
+                          <div className="p-3 grid grid-cols-2 gap-2">
+                              {groupCows.map(cow => {
+                                  // Determine status badge colors and short text
+                                  let bgColor = 'bg-white';
+                                  let textColor = 'text-gray-600';
+                                  let shortStatus = '';
+
+                                  const customBg = settings?.statusColors?.[cow.status];
+                                  if (customBg) {
+                                      bgColor = customBg;
+                                      textColor = "text-gray-900"; // Assuming light custom bgs
+                                  } else {
+                                      if (cow.status === BreedingStatus.EMPTY) { bgColor = 'bg-red-50'; textColor = 'text-red-700'; shortStatus = '空胎'; }
+                                      else if (cow.status === BreedingStatus.INSEMINATED) { bgColor = 'bg-blue-50'; textColor = 'text-blue-700'; shortStatus = '種付済'; }
+                                      else if (cow.status === BreedingStatus.PREGNANT) { bgColor = 'bg-green-50'; textColor = 'text-green-700'; shortStatus = '妊娠中'; }
+                                      else if (cow.status === BreedingStatus.RECOVERY) { bgColor = 'bg-gray-100'; textColor = 'text-gray-600'; shortStatus = '休養'; }
+                                      else if (cow.status === BreedingStatus.CALVING_SOON) { bgColor = 'bg-purple-50'; textColor = 'text-purple-700'; shortStatus = '分娩間近'; }
+                                  }
+
+                                  if (cow.status === BreedingStatus.EMPTY) shortStatus = '空胎';
+                                  else if (cow.status === BreedingStatus.INSEMINATED) shortStatus = '種付済';
+                                  else if (cow.status === BreedingStatus.PREGNANT) shortStatus = '妊娠中';
+                                  else if (cow.status === BreedingStatus.RECOVERY) shortStatus = '休養';
+                                  else if (cow.status === BreedingStatus.CALVING_SOON) shortStatus = '分娩前';
+
+                                  let detailText = '';
+                                  if (cow.status === BreedingStatus.INSEMINATED && cow.lastInseminationDate) {
+                                      detailText = `AI後${daysBetween(new Date(), new Date(cow.lastInseminationDate))}日`;
+                                  } else if (cow.status === BreedingStatus.CALVING_SOON && cow.expectedCalvingDate) {
+                                      const d = daysBetween(new Date(cow.expectedCalvingDate), new Date());
+                                      detailText = d >= 0 ? `あと${d}日` : `予定日超過`;
+                                  } else if (cow.status === BreedingStatus.EMPTY && cow.lastCalvingDate) {
+                                      detailText = `産後${daysBetween(new Date(), new Date(cow.lastCalvingDate))}日`;
+                                  }
+
+                                  const displayId = cow.earTag.length >= 5 ? cow.earTag.slice(-5) : cow.earTag;
+
+                                  return (
+                                      <div 
+                                          key={cow.id} 
+                                          onClick={() => onCowClick && onCowClick(cow.id)}
+                                          className={`p-2 rounded border border-gray-200 flex flex-col justify-between cursor-pointer hover:opacity-80 active:scale-95 transition-all ${bgColor}`}
+                                      >
+                                          <div className="flex flex-col items-start gap-0.5">
+                                              <span className={`font-bold text-xs ${textColor} truncate w-full`}>{displayId} {cow.name}</span>
+                                          </div>
+                                          <div className="flex justify-between items-end mt-1">
+                                              <span className={`text-[10px] font-bold px-1.5 py-0.5 bg-white rounded-sm border ${textColor} opacity-80`}>{shortStatus}</span>
+                                              <span className="text-[10px] text-gray-500 font-medium">{detailText}</span>
+                                          </div>
+                                      </div>
+                                  );
+                              })}
+                          </div>
+                      </div>
+                  );
+              })}
+              
+              {/* No Group Cows */}
+              {(() => {
+                  const noGroupCows = cows.filter(c => !c.isRemoved && (!c.groupId || c.groupId === ''));
+                  if (noGroupCows.length === 0) return null;
+                  return (
+                      <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+                          <div className="bg-gray-400 text-white p-3 font-bold text-sm flex justify-between items-center">
+                              <span>グループ未指定</span>
+                              <span className="text-xs bg-gray-500 px-2 py-0.5 rounded-full">{noGroupCows.length}頭</span>
+                          </div>
+                          <div className="p-3 grid grid-cols-2 gap-2">
+                              <span className="text-xs text-gray-500 italic col-span-2 text-center py-2">牛の詳細画面からグループを設定できます</span>
+                          </div>
+                      </div>
+                  );
+              })()}
+          </div>
       </div>
 
       <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm h-72">

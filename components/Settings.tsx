@@ -844,6 +844,54 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
                     <Save size={20} /> 設定を保存する
                  </button>
              </div>
+
+             {/* Groups Settings */}
+             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
+                 <h2 className="font-bold text-lg border-b pb-2 flex items-center gap-2">
+                     <Database size={20} className="text-wagyu-600" />
+                     牛群(グループ/部屋)設定
+                 </h2>
+                 <p className="text-xs text-gray-500 mb-2">牛舎の部屋など、牛をグループ分けするための設定です。自由に名前を変更できます。</p>
+                 <div className="space-y-2">
+                     {(localSettings.groups || []).map((group, idx) => (
+                         <div key={group.id} className="flex items-center gap-2">
+                             <span className="text-sm font-bold w-6 text-gray-400">{idx + 1}.</span>
+                             <input
+                                 type="text"
+                                 value={group.name}
+                                 placeholder="グループ名 (例: 北牛舎)"
+                                 onChange={(e) => {
+                                     const newGroups = [...(localSettings.groups || [])];
+                                     newGroups[idx] = { ...group, name: e.target.value };
+                                     setLocalSettings({...localSettings, groups: newGroups});
+                                 }}
+                                 className="flex-1 border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-wagyu-300 focus:outline-none transition-colors"
+                             />
+                             <button
+                                 onClick={() => {
+                                     const newGroups = (localSettings.groups || []).filter((_, i) => i !== idx);
+                                     setLocalSettings({...localSettings, groups: newGroups});
+                                 }}
+                                 className="p-2 text-gray-400 hover:text-red-500 bg-gray-50 rounded-lg"
+                             >
+                                 <Trash2 size={16} />
+                             </button>
+                         </div>
+                     ))}
+                     <button
+                         onClick={() => {
+                             const newGroups = [...(localSettings.groups || []), { id: `group${Date.now()}`, name: "" }];
+                             setLocalSettings({...localSettings, groups: newGroups});
+                         }}
+                         className="mt-2 text-wagyu-600 font-bold text-sm flex items-center gap-1 hover:underline"
+                     >
+                         <Plus size={16} /> グループを追加
+                     </button>
+                 </div>
+                 <button onClick={handleSaveSettings} className="w-full bg-wagyu-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg hover:bg-wagyu-700 mt-4">
+                    <Save size={20} /> 設定を保存する
+                 </button>
+             </div>
              
              {/* Data Sync Section */}
              <div className="bg-white rounded-xl shadow-lg border border-wagyu-200 p-6 space-y-4 relative overflow-hidden">

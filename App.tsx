@@ -277,67 +277,69 @@ export default function App() {
       }));
   };
 
-  let content;
+  let tabContent;
+  switch (activeTab) {
+    case 'dashboard': tabContent = ( <Dashboard cows={cows} alerts={alerts} onCowClick={handleCowClick} generalEvents={generalEvents} onAddGeneralEvent={handleAddGeneralEvent} /> ); break;
+    case 'list': tabContent = <CowList cows={cows} onCowClick={handleCowClick} settings={settings} onAddCow={handleAddCow} lastViewedCowId={lastViewedCowId} />; break;
+    case 'calves': tabContent = <CalfList calves={calves} onCalfClick={handleCalfClick} onAddCalfClick={() => {
+        const newCalf: Calf = {
+            id: Date.now().toString(),
+            sex: 'MALE',
+            birthDate: new Date().toISOString().split('T')[0],
+        };
+        handleAddCalf(newCalf);
+        handleCalfClick(newCalf.id); // Open it immediately for editing
+    }} />; break;
+    case 'analytics': tabContent = ( <Analytics cows={cows} calves={calves} settings={settings} onResetData={handleResetSalesData} onCowClick={handleCowClick} /> ); break;
+    case 'settings': tabContent = ( <Settings settings={settings} onSave={setSettings} cows={cows} calves={calves} generalEvents={generalEvents} bullList={bullList} onImportCows={handleImportCows} onRestoreBackup={(restoredCows, restoredCalves, restoredSettings, restoredGeneralEvents, restoredBullList) => { setCows(restoredCows); setCalves(restoredCalves); setSettings(restoredSettings); if(restoredGeneralEvents) setGeneralEvents(restoredGeneralEvents); if(restoredBullList) setBullList(restoredBullList); }} /> ); break;
+    default: tabContent = ( <Dashboard cows={cows} alerts={alerts} onCowClick={handleCowClick} generalEvents={generalEvents} onAddGeneralEvent={handleAddGeneralEvent} /> );
+  }
+
   const targetCow = selectedCowId ? cows.find(c => c.id === selectedCowId) : null;
   const targetCalf = selectedCalfId ? calves.find(c => c.id === selectedCalfId) : null;
-
-  if (targetCow) {
-      content = ( 
-        <CowDetail 
-            cow={targetCow} 
-            allCows={cows} 
-            calves={calves.filter(c => c.motherId === targetCow.id)} 
-            settings={settings}
-            onBack={handleBack} 
-            onAddEvent={handleAddEvent}
-            onDeleteEvent={handleDeleteEvent} 
-            bullList={bullList} 
-            onUpdateBullList={setBullList} 
-            onDelete={handleDeleteCow} 
-            onUpdate={handleUpdateCow} 
-            onAddCalf={handleAddCalf} 
-            onUpdateCalf={handleUpdateCalf} 
-            onDeleteCalf={handleDeleteCalf} 
-        /> 
-      );
-  } else if (targetCalf) {
-      content = (
-          <CalfDetail
-              calf={targetCalf}
-              allCows={cows}
-              onBack={handleBack}
-              onUpdate={handleUpdateCalf}
-              onDelete={handleDeleteCalf}
-              onMotherClick={(motherId) => {
-                  setSelectedCalfId(null);
-                  handleCowClick(motherId);
-              }}
-          />
-      );
-  } else {
-    switch (activeTab) {
-      case 'dashboard': content = ( <Dashboard cows={cows} alerts={alerts} onCowClick={handleCowClick} generalEvents={generalEvents} onAddGeneralEvent={handleAddGeneralEvent} /> ); break;
-      case 'list': content = <CowList cows={cows} onCowClick={handleCowClick} settings={settings} onAddCow={handleAddCow} lastViewedCowId={lastViewedCowId} />; break;
-      case 'calves': content = <CalfList calves={calves} onCalfClick={handleCalfClick} onAddCalfClick={() => {
-          const newCalf: Calf = {
-              id: Date.now().toString(),
-              sex: 'MALE',
-              birthDate: new Date().toISOString().split('T')[0],
-          };
-          handleAddCalf(newCalf);
-          handleCalfClick(newCalf.id); // Open it immediately for editing
-      }} />; break;
-      case 'analytics': content = ( <Analytics cows={cows} calves={calves} settings={settings} onResetData={handleResetSalesData} /> ); break;
-      case 'settings': content = ( <Settings settings={settings} onSave={setSettings} cows={cows} calves={calves} generalEvents={generalEvents} bullList={bullList} onImportCows={handleImportCows} onRestoreBackup={(restoredCows, restoredCalves, restoredSettings, restoredGeneralEvents, restoredBullList) => { setCows(restoredCows); setCalves(restoredCalves); setSettings(restoredSettings); if(restoredGeneralEvents) setGeneralEvents(restoredGeneralEvents); if(restoredBullList) setBullList(restoredBullList); }} /> ); break;
-      default: content = ( <Dashboard cows={cows} alerts={alerts} onCowClick={handleCowClick} generalEvents={generalEvents} onAddGeneralEvent={handleAddGeneralEvent} /> );
-    }
-  }
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 font-sans max-w-md mx-auto relative shadow-2xl overflow-hidden">
         {settings.sync?.enabled && ( <div className={`absolute top-0 right-0 p-2 z-50 ${syncStatus === 'ONLINE' ? 'text-green-500' : 'text-gray-400'}`}> {syncStatus === 'ONLINE' ? <Wifi size={16} /> : <WifiOff size={16} />} </div> )}
         <main className="h-screen overflow-hidden flex flex-col">
-            <div className="flex-1 overflow-y-auto relative scroll-smooth">{content}</div>
+            <div className={`flex-1 overflow-y-auto relative scroll-smooth ${targetCow || targetCalf ? 'hidden' : 'block'}`}>
+                {tabContent}
+            </div>
+            {targetCow && (
+                <div className="flex-1 overflow-y-auto relative scroll-smooth block">
+                    <CowDetail 
+                        cow={targetCow} 
+                        allCows={cows} 
+                        calves={calves.filter(c => c.motherId === targetCow.id)} 
+                        settings={settings}
+                        onBack={handleBack} 
+                        onAddEvent={handleAddEvent}
+                        onDeleteEvent={handleDeleteEvent} 
+                        bullList={bullList} 
+                        onUpdateBullList={setBullList} 
+                        onDelete={handleDeleteCow} 
+                        onUpdate={handleUpdateCow} 
+                        onAddCalf={handleAddCalf} 
+                        onUpdateCalf={handleUpdateCalf} 
+                        onDeleteCalf={handleDeleteCalf} 
+                    /> 
+                </div>
+            )}
+            {targetCalf && (
+                <div className="flex-1 overflow-y-auto relative scroll-smooth block">
+                    <CalfDetail
+                        calf={targetCalf}
+                        allCows={cows}
+                        onBack={handleBack}
+                        onUpdate={handleUpdateCalf}
+                        onDelete={handleDeleteCalf}
+                        onMotherClick={(motherId) => {
+                            setSelectedCalfId(null);
+                            handleCowClick(motherId);
+                        }}
+                    />
+                </div>
+            )}
         </main>
         {(!targetCow && !targetCalf) && ( <Navigation currentTab={activeTab} onTabChange={setActiveTab} /> )}
     </div>

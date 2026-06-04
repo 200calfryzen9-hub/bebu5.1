@@ -11,6 +11,7 @@ export const DEFAULT_SETTINGS: Settings = {
   alertHeiferCalvingSoonDays: 45, // Highlight list pink if heifer calving < 45 days (First time needs more prep)
   estimatedCalfPrice: 750000,
   statusColors: {}, // Default empty, falls back to standard Tailwind classes
+  groups: Array.from({length: 10}).map((_, i) => ({ id: `group${i+1}`, name: `グループ${i+1}` })),
   sync: {
       enabled: false,
       familyId: '',
