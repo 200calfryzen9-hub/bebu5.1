@@ -173,22 +173,32 @@ export const CowDetail: React.FC<CowDetailProps> = ({
       setShowEditModal(false);
   };
 
+  // Helper: Get the bull name from the most recent insemination event
+  const getLastBullName = (): string => {
+      const lastInsem = [...(cow.events || [])]
+          .filter(e => e.type === EventType.INSEMINATION)
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+      return (lastInsem?.relatedId) || '';
+  };
+
   const openCalfModal = (calf?: Calf) => {
       if (calf) {
           setSelectedCalf(calf);
           // Convert price: Stored as yen (850000), Display as thousand yen (850)
           const displayPrice = calf.price ? Math.round(calf.price / 1000).toString() : '';
-          
           setCalfForm({
               earTag: calf.earTag || '', birthDate: calf.birthDate, sex: calf.sex, 
               price: displayPrice, weight: calf.weight ? calf.weight.toString() : '', 
-              auctionDate: calf.auctionDate || '', fatherName: calf.fatherName || ''
+              auctionDate: calf.auctionDate || '',
+              fatherName: calf.fatherName || getLastBullName()
           });
       } else {
           setSelectedCalf(null);
+          const autoBull = getLastBullName();
           setCalfForm({
               earTag: '', birthDate: todayStr, sex: 'MALE', 
-              price: '', weight: '', auctionDate: '', fatherName: ''
+              price: '', weight: '', auctionDate: '',
+              fatherName: autoBull
           });
       }
       setShowCalfModal(true);
@@ -706,15 +716,47 @@ export const CowDetail: React.FC<CowDetailProps> = ({
                       </div>
                       
                       <div className="mb-4">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">種雄牛 (父)</label>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">種雄牛 (父) ※自動取得</label>
+                          {/* Show all insemination events as radio-style options */}
+                          {(() => {
+                              const insemEvents = [...(cow.events || [])]
+                                  .filter(e => e.type === EventType.INSEMINATION && e.relatedId)
+                                  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                                  .slice(0, 4); // Show up to 4 most recent
+                              return insemEvents.length > 0 ? (
+                                  <div className="space-y-2 mb-2">
+                                      {insemEvents.map((ev, i) => (
+                                          <button
+                                              key={ev.id}
+                                              type="button"
+                                              onClick={() => setCalvingBull(ev.relatedId!)}
+                                              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-sm transition-all ${
+                                                  calvingBull === ev.relatedId
+                                                      ? 'bg-blue-50 border-blue-400 text-blue-800 font-bold'
+                                                      : 'bg-white border-gray-200 text-gray-600'
+                                              }`}
+                                          >
+                                              <span className="font-bold">{ev.relatedId}</span>
+                                              <span className="text-[10px] text-gray-400">
+                                                  {i === 0 ? '🔵 最新の種付' : `種付日: ${formatDateJP(ev.date, 'short')}`}
+                                              </span>
+                                          </button>
+                                      ))}
+                                  </div>
+                              ) : null;
+                          })()}
                           <input 
                             type="text" 
-                            placeholder="種付履歴から自動入力" 
+                            placeholder="上のボタンで選択、または直接入力"
                             value={calvingBull} 
                             onChange={(e) => setCalvingBull(e.target.value)} 
-                            className="w-full p-2 border border-gray-300 rounded-lg"
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm"
                           />
-                          <p className="text-[10px] text-gray-400 mt-1">※前回種付履歴から自動で推測しています</p>
+                          {calvingBull && (
+                              <div className="mt-1 px-2 py-1 bg-wagyu-50 border border-wagyu-200 rounded text-xs text-wagyu-700 font-bold">
+                                  ✅ 父牛: {calvingBull} として子牛に登録されます
+                              </div>
+                          )}
                       </div>
 
                       <label className="block text-sm font-medium text-gray-700 mb-1">分娩の状態</label>
@@ -825,8 +867,23 @@ export const CowDetail: React.FC<CowDetailProps> = ({
                           </div>
                       </div>
                       <div>
-                          <label className="text-xs text-gray-500">父牛 (種雄牛)</label>
-                          <input className="w-full p-2 border rounded-lg" placeholder="福之姫" value={calfForm.fatherName} onChange={e => setCalfForm({...calfForm, fatherName: e.target.value})} />
+                          <label className="text-xs text-gray-500 font-bold">父牛 (種雄牛)</label>
+                          <input
+                              className={`w-full p-2 border rounded-lg mt-1 ${calfForm.fatherName ? 'border-wagyu-300 bg-wagyu-50' : 'border-gray-300'}`}
+                              placeholder="例: 福之姫"
+                              value={calfForm.fatherName}
+                              onChange={e => setCalfForm({...calfForm, fatherName: e.target.value})}
+                          />
+                          {calfForm.fatherName && !selectedCalf && (
+                              <p className="text-[10px] text-wagyu-600 font-bold mt-0.5">
+                                  ✅ 種付履歴より自動入力: {calfForm.fatherName}
+                              </p>
+                          )}
+                          {!calfForm.fatherName && (
+                              <p className="text-[10px] text-orange-500 mt-0.5">
+                                  ⚠️ 種付記録が見つかりません。直接入力してください。
+                              </p>
+                          )}
                       </div>
 
                       <div className="border-t border-gray-100 pt-2 mt-2">

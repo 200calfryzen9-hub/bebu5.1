@@ -115,25 +115,54 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ events, onCowClick, 
                   dayClass = 'bg-wagyu-600 text-white';
               }
 
+              // Map bg color class → text color class for earTag labels
+              const bgToText = (bgClass: string): string => {
+                  const map: Record<string, string> = {
+                      'bg-red-500':    'text-red-600',
+                      'bg-orange-400': 'text-orange-500',
+                      'bg-blue-400':   'text-blue-500',
+                      'bg-blue-500':   'text-blue-600',
+                      'bg-green-500':  'text-green-600',
+                      'bg-purple-500': 'text-purple-600',
+                      'bg-pink-400':   'text-pink-500',
+                      'bg-amber-400':  'text-amber-500',
+                      'bg-gray-500':   'text-gray-500',
+                  };
+                  return map[bgClass] ?? 'text-gray-500';
+              };
+
+              // Extract earTag last-5 from event title  e.g. "分娩予定: 67890 はなこ" → "67890"
+              const extractId = (title: string): string => {
+                  const m = title.match(/(\d{5})/);
+                  return m ? m[1] : '----';
+              };
+
               return (
-                  <div key={idx} className={`min-h-[60px] border-t border-r border-gray-100 p-1 relative ${!day ? 'bg-gray-50' : ''}`}>
+                  <div key={idx} className={`min-h-[64px] border-t border-r border-gray-100 p-1 relative ${!day ? 'bg-gray-50' : ''}`}>
                       {day && (
                           <>
-                            <span className={`block w-6 h-6 text-center leading-5 rounded-full text-xs font-medium mb-1 mx-auto ${dayClass}`}>
+                            <span className={`block w-6 h-6 text-center leading-5 rounded-full text-xs font-medium mb-0.5 mx-auto ${dayClass}`}>
                                 {day}
                             </span>
-                            <div className="flex flex-col gap-1">
-                                {dayEvents.map((evt, eIdx) => (
-                                    <div 
-                                        key={eIdx}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleEventClick(evt);
-                                        }}
-                                        className={`w-full h-1.5 rounded-full ${evt.color} cursor-pointer`}
-                                        title={evt.title}
-                                    />
-                                ))}
+                            <div className="flex flex-col gap-0.5">
+                                {dayEvents.map((evt, eIdx) => {
+                                    const textColor = bgToText(evt.color);
+                                    const earTagId  = extractId(evt.title);
+                                    return (
+                                        <div
+                                            key={eIdx}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleEventClick(evt);
+                                            }}
+                                            className={`w-full text-center leading-tight font-bold cursor-pointer truncate rounded ${textColor}`}
+                                            style={{ fontSize: '9px' }}
+                                            title={evt.title}
+                                        >
+                                            {earTagId}
+                                        </div>
+                                    );
+                                })}
                             </div>
                           </>
                       )}
@@ -153,17 +182,47 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ events, onCowClick, 
                 <Plus size={12} /> 予定追加
             </button>
           </div>
-          <div className="space-y-2 max-h-48 overflow-y-auto">
+          <div className="space-y-1.5 max-h-48 overflow-y-auto">
              {events
                 .filter(e => e.date.startsWith(formatDate(new Date(year, month, 1)).substring(0, 7)))
                 .sort((a,b) => a.date.localeCompare(b.date))
-                .map((e, idx) => (
-                 <div key={idx} onClick={() => handleEventClick(e)} className="flex items-center gap-3 text-sm p-2 hover:bg-gray-50 rounded cursor-pointer">
-                     <span className="font-mono text-gray-400 text-xs min-w-[50px]">{formatDateJP(e.date, 'short')}</span>
-                     <span className={`w-2 h-2 rounded-full ${e.color}`}></span>
-                     <span className="text-gray-700 truncate">{e.title}</span>
-                 </div>
-             ))}
+                .map((e, idx) => {
+                  // Derive border/text color from bg color class
+                  const colorMap: Record<string, { border: string; text: string; bg: string }> = {
+                    'bg-red-500':    { border: 'border-red-400',    text: 'text-red-600',    bg: 'bg-red-50'    },
+                    'bg-orange-400': { border: 'border-orange-400', text: 'text-orange-600', bg: 'bg-orange-50' },
+                    'bg-blue-400':   { border: 'border-blue-400',   text: 'text-blue-600',   bg: 'bg-blue-50'   },
+                    'bg-blue-500':   { border: 'border-blue-500',   text: 'text-blue-700',   bg: 'bg-blue-50'   },
+                    'bg-green-500':  { border: 'border-green-400',  text: 'text-green-700',  bg: 'bg-green-50'  },
+                    'bg-purple-500': { border: 'border-purple-400', text: 'text-purple-700', bg: 'bg-purple-50' },
+                    'bg-gray-500':   { border: 'border-gray-400',   text: 'text-gray-600',   bg: 'bg-gray-50'   },
+                  };
+                  const c = colorMap[e.color] ?? { border: 'border-gray-300', text: 'text-gray-600', bg: 'bg-gray-50' };
+                  // Extract earTag (5 digits) from title if present
+                  const idMatch = e.title.match(/(\d{5})/);
+                  const earTagId = idMatch ? idMatch[1] : null;
+                  // Event type label
+                  const typeLabel = e.type === 'CALVING' ? '分娩予定' : e.type === 'ESTRUS_CHECK' ? '再発情' : null;
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => handleEventClick(e)}
+                      className={`flex items-center gap-2 text-sm p-2 rounded-lg border-l-4 ${c.border} ${c.bg} cursor-pointer hover:brightness-95 transition-all`}
+                    >
+                      <span className="font-mono text-gray-400 text-[10px] min-w-[42px]">{formatDateJP(e.date, 'short')}</span>
+                      {typeLabel && (
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${c.bg} ${c.text} border ${c.border} whitespace-nowrap`}>
+                          {typeLabel}
+                        </span>
+                      )}
+                      {earTagId ? (
+                        <span className={`font-bold font-mono ${c.text} text-sm`}>{earTagId}</span>
+                      ) : (
+                        <span className="text-gray-700 truncate text-xs">{e.title}</span>
+                      )}
+                    </div>
+                  );
+                })}
              {events.filter(e => e.date.startsWith(formatDate(new Date(year, month, 1)).substring(0, 7))).length === 0 && (
                  <div className="text-center text-xs text-gray-400 py-2">イベントはありません</div>
              )}

@@ -106,75 +106,72 @@ export const CowList: React.FC<CowListProps> = ({ cows, onCowClick, settings, on
   // Logic to determine row styling based on user settings
   const getRowStyle = (cow: Cow) => {
       const today = new Date();
-      let bgClass = "bg-white"; // Default
+      let bgClass = "bg-white";
       let borderClass = "border-gray-200";
+      let glitterClass = ""; // ✨ キラキラクラス
 
       if (cow.isRemoved) {
           bgClass = "bg-gray-200 opacity-70";
           borderClass = "border-gray-400 border-dashed";
-          return { bgClass, borderClass };
+          return { bgClass, borderClass, glitterClass };
       }
 
       // --- STATUS BASED BASE COLORS ---
       const customBg = settings?.statusColors?.[cow.status];
       if (customBg) {
           bgClass = customBg;
-          // Match border roughly based on background, or just keep a solid border
           borderClass = customBg === 'bg-white' ? 'border-gray-200' : `${customBg.replace('bg-', 'border-').replace('50', '200').replace('100', '300').replace('200', '400')}`;
       } else {
-          // Fallbacks if no custom color set
           if (cow.status === BreedingStatus.PREGNANT) {
               bgClass = "bg-green-50"; borderClass = "border-green-200";
+              glitterClass = "shimmer"; // ✨ 妊娠中 → シルバーシマー
           } else if (cow.status === BreedingStatus.INSEMINATED) {
               bgClass = "bg-blue-50"; borderClass = "border-blue-200";
           } else if (cow.status === BreedingStatus.RECOVERY) {
               bgClass = "bg-gray-50"; borderClass = "border-gray-200";
-          } else if (cow.status === BreedingStatus.CALVING_SOON) { // Add fallback for calving soon status itself if not overridden by logic below
+          } else if (cow.status === BreedingStatus.CALVING_SOON) {
               bgClass = "bg-purple-50"; borderClass = "border-purple-200";
+              glitterClass = "rainbow-glitter"; // ✨ 分娩近 → レインボー
           }
       }
 
       // --- ALERTS OVERRIDE (High Priority) ---
-
-      // Check Calving related Alerts
       if (cow.expectedCalvingDate) {
           const daysToCalving = daysBetween(parseDate(cow.expectedCalvingDate), today);
           
-          // 1. Overdue (Red Border)
           if (daysToCalving < 0) {
-              bgClass = "bg-red-50"; // Slightly stronger red background for overdue
+              bgClass = "bg-red-50";
               borderClass = "border-red-300 border-2";
-              return { bgClass, borderClass };
+              glitterClass = "rainbow-glitter"; // ✨ 超過 → レインボー
+              return { bgClass, borderClass, glitterClass };
           }
 
-          // 2. Heifer (First time) Calving Soon - High Priority (Pink)
-          // Condition: No last calving date AND within heifer threshold (default 45 days)
           const heiferThreshold = settings.alertHeiferCalvingSoonDays || 45;
           if (!cow.lastCalvingDate && daysToCalving <= heiferThreshold && daysToCalving >= 0) {
               bgClass = "bg-pink-50"; 
               borderClass = "border-pink-300 ring-1 ring-pink-100";
-              return { bgClass, borderClass };
+              glitterClass = "shimmer"; // ✨ 初産近 → シマー
+              return { bgClass, borderClass, glitterClass };
           }
 
-          // 3. Standard Calving Soon (Purple)
           if (daysToCalving <= settings.alertCalvingSoonDays && daysToCalving >= 0) {
               bgClass = "bg-purple-50"; 
               borderClass = "border-purple-300 ring-1 ring-purple-100";
-              return { bgClass, borderClass };
+              glitterClass = "rainbow-glitter"; // ✨ 分娩近 → レインボー
+              return { bgClass, borderClass, glitterClass };
           }
       }
 
-      // 4. Warning: Long Empty (User configured days)
       if ((cow.status === BreedingStatus.EMPTY || cow.status === BreedingStatus.RECOVERY) && cow.lastCalvingDate) {
           const daysEmpty = daysBetween(today, parseDate(cow.lastCalvingDate));
           if (daysEmpty >= settings.alertEmptyDays) {
               bgClass = "bg-cyan-50";
               borderClass = "border-cyan-300";
-              return { bgClass, borderClass };
+              return { bgClass, borderClass, glitterClass };
           }
       }
 
-      return { bgClass, borderClass };
+      return { bgClass, borderClass, glitterClass };
   };
   
   const handleSaveNewCow = () => {
@@ -324,14 +321,14 @@ export const CowList: React.FC<CowListProps> = ({ cows, onCowClick, settings, on
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {sortedCows.map(cow => {
             const displayId = cow.earTag.length >= 5 ? cow.earTag.slice(-5) : cow.earTag;
-            const { bgClass, borderClass } = getRowStyle(cow);
+            const { bgClass, borderClass, glitterClass } = getRowStyle(cow);
 
             return (
               <div
                 key={cow.id}
                 id={`cow-card-${cow.id}`}
                 onClick={() => onCowClick(cow.id)}
-                className={`${bgClass} p-4 rounded-xl shadow-sm border ${borderClass} flex justify-between items-center active:bg-gray-100 transition-colors relative overflow-hidden cursor-pointer`}
+                className={`${bgClass} ${glitterClass} p-4 rounded-2xl shadow-soft border ${borderClass} flex justify-between items-center tap-card relative overflow-hidden cursor-pointer`}
               >
                 {/* Status Indicator Bar on Left */}
                 <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
