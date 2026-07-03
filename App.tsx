@@ -10,7 +10,7 @@ import { Analytics } from './components/Analytics';
 import { Settings } from './components/Settings';
 import { MOCK_COWS, MOCK_CALVES } from './data/mockData';
 import { DEFAULT_SETTINGS, MOCK_BULLS as INITIAL_BULLS } from './constants';
-import { generateAlerts, calculateExpectedCalvingDate, recalculateCowStatus, daysBetween, parseDate } from './utils/breedingService';
+import { generateAlerts, calculateExpectedCalvingDate, recalculateCowStatus, daysBetween, parseDate, resolveFatherName } from './utils/breedingService';
 import { Cow, BreedingEvent, EventType, BreedingStatus, GeneralEvent, Calf } from './types';
 import { Wifi, WifiOff } from 'lucide-react';
 import { initFirebase, saveToRemote, subscribeToRemote } from './utils/firebaseService';
@@ -204,6 +204,11 @@ export default function App() {
 
   const handleUpdateCow = (updatedCow: Cow) => setCows(prev => prev.map(c => c.id === updatedCow.id ? updatedCow : c));
   const handleAddCalf = (newCalf: Calf) => {
+      // ★父牛が空なら母牛の種付履歴から自動補完（全登録ルート共通の最終防衛ライン）
+      if (!newCalf.fatherName) {
+          const resolved = resolveFatherName(newCalf, cows);
+          if (resolved) newCalf.fatherName = resolved;
+      }
       // Pre-populate with default todos if any exist in settings
       if (settings.defaultCalfTodos && settings.defaultCalfTodos.length > 0) {
           const nowStr = new Date().toISOString();
@@ -217,7 +222,14 @@ export default function App() {
       }
       setCalves(prev => [...prev, newCalf]); 
   };
-  const handleUpdateCalf = (updatedCalf: Calf) => setCalves(prev => prev.map(c => c.id === updatedCalf.id ? updatedCalf : c));
+  const handleUpdateCalf = (updatedCalf: Calf) => {
+      // ★更新時も父牛が空なら自動補完
+      if (!updatedCalf.fatherName) {
+          const resolved = resolveFatherName(updatedCalf, cows);
+          if (resolved) updatedCalf = { ...updatedCalf, fatherName: resolved };
+      }
+      setCalves(prev => prev.map(c => c.id === updatedCalf.id ? updatedCalf : c));
+  };
   const handleDeleteCalf = (calfId: string) => setCalves(prev => prev.filter(c => c.id !== calfId));
   const handleResetSalesData = () => setCalves(prev => prev.map(c => ({ ...c, price: undefined, weight: undefined, grade: undefined, auctionDate: undefined })));
   const handleAddGeneralEvent = (event: Omit<GeneralEvent, 'id'>) => { setGeneralEvents(prev => [...prev, { ...event, id: Date.now().toString() }]); };
@@ -263,7 +275,7 @@ export default function App() {
       setCows(prev => prev.map(cow => {
           if (cow.id !== cowId) return cow;
           
-          const filteredEvents = cow.events.filter(e => e.id !== eventId);
+          const filteredEvents = (Array.isArray(cow.events) ? cow.events : Object.values(cow.events || {})).filter((e: any) => e.id !== eventId);
           const { status, lastInseminationDate, lastCalvingDate, expectedCalvingDate } = recalculateCowStatus(filteredEvents);
 
           return {
@@ -277,11 +289,19 @@ export default function App() {
       }));
   };
 
+  // ★表示用: 父牛が未設定の子牛は、母牛の種付履歴からその場で補完して表示する
+  // （過去に登録済みで父牛が空のままのデータも「不明」にならず表示される）
+  const enrichedCalves = calves.map(c => {
+      if (c.fatherName) return c;
+      const resolved = resolveFatherName(c, cows);
+      return resolved ? { ...c, fatherName: resolved } : c;
+  });
+
   let tabContent;
   switch (activeTab) {
     case 'dashboard': tabContent = ( <Dashboard cows={cows} alerts={alerts} onCowClick={handleCowClick} generalEvents={generalEvents} onAddGeneralEvent={handleAddGeneralEvent} /> ); break;
     case 'list': tabContent = <CowList cows={cows} onCowClick={handleCowClick} settings={settings} onAddCow={handleAddCow} lastViewedCowId={lastViewedCowId} />; break;
-    case 'calves': tabContent = <CalfList calves={calves} onCalfClick={handleCalfClick} onAddCalfClick={() => {
+    case 'calves': tabContent = <CalfList calves={enrichedCalves} onCalfClick={handleCalfClick} onAddCalfClick={() => {
         const newCalf: Calf = {
             id: Date.now().toString(),
             sex: 'MALE',
@@ -296,7 +316,7 @@ export default function App() {
   }
 
   const targetCow = selectedCowId ? cows.find(c => c.id === selectedCowId) : null;
-  const targetCalf = selectedCalfId ? calves.find(c => c.id === selectedCalfId) : null;
+  const targetCalf = selectedCalfId ? enrichedCalves.find(c => c.id === selectedCalfId) : null;
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 font-sans max-w-md mx-auto relative shadow-2xl overflow-hidden">
@@ -310,7 +330,7 @@ export default function App() {
                     <CowDetail 
                         cow={targetCow} 
                         allCows={cows} 
-                        calves={calves.filter(c => c.motherId === targetCow.id)} 
+                        calves={enrichedCalves.filter(c => c.motherId === targetCow.id)} 
                         settings={settings}
                         onBack={handleBack} 
                         onAddEvent={handleAddEvent}

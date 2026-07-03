@@ -105,14 +105,14 @@ export const CowDetail: React.FC<CowDetailProps> = ({
     setSelectedBull('');
   };
   const handleCalving = () => {
-      const lastInsem = cow.events.filter(e => e.type === EventType.INSEMINATION).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-      const finalBull = calvingBull || (lastInsem ? lastInsem.relatedId : '') || '不明';
+      // ★安全版: eventsがFirebase由来のオブジェクト型でも動作する
+      const finalBull = calvingBull || getLastBullName() || '';
 
       onAddEvent(cow.id, {
           type: EventType.CALVING,
           date: calvingDate,
-          details: `産子: ${calfSex === 'MALE' ? 'オス' : 'メス'}, 状態: ${calvingDifficulty}, 父: ${finalBull}`,
-          metadata: { difficulty: calvingDifficulty, calfSex, fatherName: finalBull }
+          details: `産子: ${calfSex === 'MALE' ? 'オス' : 'メス'}, 状態: ${calvingDifficulty}${finalBull ? `, 父: ${finalBull}` : ''}`,
+          metadata: { difficulty: calvingDifficulty, calfSex, fatherName: finalBull || undefined }
       });
       const newCalf: Calf = {
           id: Date.now().toString(),
@@ -120,7 +120,7 @@ export const CowDetail: React.FC<CowDetailProps> = ({
           birthDate: calvingDate,
           sex: calfSex,
           earTag: '',
-          fatherName: finalBull === '不明' ? undefined : finalBull
+          fatherName: finalBull || undefined
       };
       onAddCalf(newCalf);
       setShowCalvingModal(false);
@@ -174,10 +174,15 @@ export const CowDetail: React.FC<CowDetailProps> = ({
   };
 
   // Helper: Get the bull name from the most recent insemination event
+  // Firebase由来のオブジェクト型eventsにも対応
   const getLastBullName = (): string => {
-      const lastInsem = [...(cow.events || [])]
-          .filter(e => e.type === EventType.INSEMINATION)
-          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+      let evts: any = cow.events;
+      if (!evts) return '';
+      if (!Array.isArray(evts) && typeof evts === 'object') evts = Object.values(evts);
+      if (!Array.isArray(evts)) return '';
+      const lastInsem = evts
+          .filter((e: any) => e && e.type === EventType.INSEMINATION && e.relatedId)
+          .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
       return (lastInsem?.relatedId) || '';
   };
 
@@ -233,18 +238,8 @@ export const CowDetail: React.FC<CowDetailProps> = ({
   // Logic to guess bull for calving
   useEffect(() => {
       if (showCalvingModal) {
-          // Find the last insemination event
-          // Ideally check date around 285 days ago, but last one usually works for single active pregnancy
-          const lastInsem = [...(cow.events || [])]
-            .filter(e => e.type === EventType.INSEMINATION)
-            .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-            .pop();
-            
-          if (lastInsem && lastInsem.relatedId) {
-              setCalvingBull(lastInsem.relatedId);
-          } else {
-              setCalvingBull('');
-          }
+          // ★安全版: 種付履歴の最新種雄牛を自動セット（オブジェクト型events対応）
+          setCalvingBull(getLastBullName());
       }
   }, [showCalvingModal, cow.events]);
 
@@ -341,12 +336,7 @@ export const CowDetail: React.FC<CowDetailProps> = ({
         <button 
             onClick={() => { 
                 setCalvingDate(todayStr); 
-                const lastInsem = cow.events.filter(e => e.type === EventType.INSEMINATION).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-                if (lastInsem && lastInsem.relatedId) {
-                    setCalvingBull(lastInsem.relatedId);
-                } else {
-                    setCalvingBull('');
-                }
+                setCalvingBull(getLastBullName()); // ★安全版: 種付履歴から自動セット
                 setShowCalvingModal(true); 
             }}
             className="flex flex-col items-center justify-center p-3 bg-pink-500 text-white rounded-xl shadow-lg active:bg-pink-600 transition-colors"

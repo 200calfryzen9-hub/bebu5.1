@@ -30,7 +30,7 @@ export const CalfList: React.FC<CalfListProps> = ({ calves, onCalfClick, onAddCa
   return (
     <div className="flex flex-col h-full bg-gray-50 pb-24">
       {/* Header */}
-      <header className="bg-wagyu-600 text-white rounded-b-3xl shadow-lg relative z-10 px-5 pt-10 pb-6">
+      <header className="hero-gradient text-white rounded-b-3xl shadow-glow relative z-10 px-5 pt-10 pb-6">
         <div className="flex justify-between items-center mb-4">
             <h1 className="text-2xl font-bold flex items-center gap-2">
                 <Baby size={28} />
@@ -71,7 +71,7 @@ export const CalfList: React.FC<CalfListProps> = ({ calves, onCalfClick, onAddCa
                 <div 
                   key={calf.id} 
                   onClick={() => onCalfClick(calf.id)}
-                  className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow active:scale-[0.98] cursor-pointer"
+                  className="bg-white rounded-2xl p-4 shadow-soft border border-gray-100 tap-card cursor-pointer"
                 >
                     <div className="flex justify-between items-start mb-2">
                         <div>
@@ -126,7 +126,7 @@ export const CalfList: React.FC<CalfListProps> = ({ calves, onCalfClick, onAddCa
       {/* FAB */}
       <button 
         onClick={onAddCalfClick}
-        className="fixed bottom-20 right-6 w-14 h-14 bg-wagyu-600 text-white rounded-full flex items-center justify-center shadow-xl hover:bg-wagyu-700 transition-colors z-20 active:scale-95"
+        className="fixed bottom-20 right-6 w-14 h-14 bg-wagyu-600 text-white rounded-full flex items-center justify-center shadow-glow hover:bg-wagyu-700 transition-all z-20 active:scale-90"
       >
         <Plus size={28} />
       </button>

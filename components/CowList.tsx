@@ -338,6 +338,22 @@ export const CowList: React.FC<CowListProps> = ({ cows, onCowClick, settings, on
                     'bg-gray-300'
                 }`}></div>
 
+                {/* ★点滅アイコン: 分娩予定日超過 / 再発情確認超過 */}
+                {(() => {
+                    const todayD = new Date();
+                    let calvingOverdue = false, estrusOverdue = false;
+                    if (cow.expectedCalvingDate && (cow.status === BreedingStatus.PREGNANT || cow.status === BreedingStatus.CALVING_SOON || cow.status === BreedingStatus.INSEMINATED)) {
+                        if (daysBetween(parseDate(cow.expectedCalvingDate), todayD) < 0) calvingOverdue = true;
+                    }
+                    if (cow.status === BreedingStatus.INSEMINATED && cow.lastInseminationDate) {
+                        const d = daysBetween(todayD, parseDate(cow.lastInseminationDate));
+                        if (d > 24 && d < 40) estrusOverdue = true;
+                    }
+                    if (calvingOverdue) return <span className="absolute top-2 right-2 text-xl animate-blink z-10" title="分娩予定日超過！">🚨</span>;
+                    if (estrusOverdue) return <span className="absolute top-2 right-2 text-xl animate-blink z-10" title="再発情確認日超過">⚠️</span>;
+                    return null;
+                })()}
+
                 <div className="flex items-center gap-4 w-full pl-3">
                    
                    <div className="flex-1 min-w-0">

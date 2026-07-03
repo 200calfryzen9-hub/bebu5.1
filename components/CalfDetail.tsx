@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Calf, Cow } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Calf, Cow, BreedingEvent } from '../types';
 import { ArrowLeft, Edit, Save, Trash2 } from 'lucide-react';
 import { calculateAge, formatDateJP } from '../utils/breedingService';
 import { EraDateInput } from './EraDateInput';
@@ -14,15 +14,48 @@ interface CalfDetailProps {
     onMotherClick?: (motherId: string) => void;
 }
 
+// 安全にイベント配列を取得（Firebase由来のオブジェクト型にも対応）
+const safeEvents = (cow: Cow | undefined): BreedingEvent[] => {
+    if (!cow || !cow.events) return [];
+    if (Array.isArray(cow.events)) return cow.events;
+    if (typeof cow.events === 'object') return Object.values(cow.events);
+    return [];
+};
+
+// 母牛の種付履歴から父牛（種雄牛）を取得
+// 一番最後（最新）の種付けの種雄牛を返す
+export const getBullFromMother = (mother: Cow | undefined): string => {
+    const events = safeEvents(mother);
+    const inseminations = events
+        .filter(ev => ev && ev.type === 'INSEMINATION' && ev.relatedId)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return inseminations.length > 0 ? (inseminations[0].relatedId || '') : '';
+};
+
 export const CalfDetail: React.FC<CalfDetailProps> = ({ calf, allCows, onBack, onUpdate, onDelete, onMotherClick }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<Calf>(calf);
     const [activeTab, setActiveTab] = useState<'INFO' | 'MEMO'>('INFO');
     const [deleteStep, setDeleteStep] = useState(0);
+    const [autoFilled, setAutoFilled] = useState(false);
+
+    // ★編集モードに入った瞬間、母牛が設定済みで父牛が空なら自動補完
+    useEffect(() => {
+        if (isEditing && editForm.motherId && !editForm.fatherName) {
+            const motherCow = allCows.find(c => c.id === editForm.motherId);
+            const bull = getBullFromMother(motherCow);
+            if (bull) {
+                setEditForm(prev => ({ ...prev, fatherName: bull }));
+                setAutoFilled(true);
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isEditing]);
 
     const handleSave = () => {
         onUpdate(editForm);
         setIsEditing(false);
+        setAutoFilled(false);
     };
 
     const handleArchive = () => {
@@ -163,14 +196,14 @@ export const CalfDetail: React.FC<CalfDetailProps> = ({ calf, allCows, onBack, o
                                 onChange={e => {
                                     const mId = e.target.value;
                                     const nextState = { ...editForm, motherId: mId };
-                                    if (mId && !editForm.fatherName) {
-                                        // Auto-fetch father from mother's last insemination if fatherName is empty
+                                    if (mId) {
+                                        // ★母牛を選んだら種付履歴から父牛（種雄牛）を自動補完
                                         const motherCow = allCows.find(c => c.id === mId);
-                                        if (motherCow) {
-                                            const lastInsem = motherCow.events.filter(ev => ev.type === 'INSEMINATION').sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-                                            if (lastInsem && lastInsem.relatedId) {
-                                                nextState.fatherName = lastInsem.relatedId;
-                                            }
+                                        const bull = getBullFromMother(motherCow);
+                                        // 父牛が空、または前の自動入力値のままなら上書き
+                                        if (bull && (!editForm.fatherName || autoFilled)) {
+                                            nextState.fatherName = bull;
+                                            setAutoFilled(true);
                                         }
                                     }
                                     setEditForm(nextState);
@@ -178,13 +211,23 @@ export const CalfDetail: React.FC<CalfDetailProps> = ({ calf, allCows, onBack, o
                             >
                                 <option value="">選択しない</option>
                                 {allCows.map(c => (
-                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                    <option key={c.id} value={c.id}>{c.earTag ? c.earTag.slice(-5) + ' ' : ''}{c.name}</option>
                                 ))}
                             </select>
                         </div>
                         <div>
                             <label className="text-xs text-gray-500 block mb-1">種雄牛 (父)</label>
-                            <input className="w-full p-2 border rounded-lg" value={editForm.fatherName || ''} onChange={e => setEditForm({...editForm, fatherName: e.target.value})} />
+                            <input
+                                className={`w-full p-2 border rounded-lg ${editForm.fatherName ? 'border-wagyu-300 bg-wagyu-50' : ''}`}
+                                value={editForm.fatherName || ''}
+                                onChange={e => { setEditForm({...editForm, fatherName: e.target.value}); setAutoFilled(false); }}
+                            />
+                            {autoFilled && editForm.fatherName && (
+                                <p className="text-[10px] text-wagyu-600 font-bold mt-0.5">✅ 母牛の種付履歴から自動入力しました</p>
+                            )}
+                            {!editForm.fatherName && editForm.motherId && (
+                                <p className="text-[10px] text-orange-500 mt-0.5">⚠️ 母牛に種付記録がないため自動入力できません</p>
+                            )}
                         </div>
                         
                         <div className="border-t border-gray-100 pt-4 mt-2">

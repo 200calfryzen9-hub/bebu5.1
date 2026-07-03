@@ -75,7 +75,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ events, onCowClick, 
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden relative">
+    <div className="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden relative">
       <div className="flex justify-between items-center p-4 border-b border-gray-100">
         <button onClick={prevMonth} className="p-2 hover:bg-gray-100 rounded-full">
             <ChevronLeft size={20} />

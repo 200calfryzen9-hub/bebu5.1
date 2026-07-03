@@ -353,3 +353,30 @@ export const calculateBreedingScore = (cows: Cow[]) => {
 
     return { score: totalScore, grade, details: scoreDetails };
 };
+
+// --- 父牛（種雄牛）解決ロジック ---
+// Firebase経由でeventsがオブジェクト型になっても安全に配列化する
+export const safeEventsArray = (events: any): BreedingEvent[] => {
+    if (!events) return [];
+    if (Array.isArray(events)) return events;
+    if (typeof events === 'object') return Object.values(events) as BreedingEvent[];
+    return [];
+};
+
+// 母牛の種付履歴から、この子牛の父牛（種雄牛）を特定する
+// 優先順位: ①出生日以前の最新の種付け ②それがなければ最新の種付け
+export const resolveFatherName = (calf: { motherId?: string; birthDate?: string; fatherName?: string }, cows: Cow[]): string | undefined => {
+    if (calf.fatherName) return calf.fatherName; // 既に設定済みならそのまま
+    if (!calf.motherId) return undefined;
+    const mother = cows.find(c => c.id === calf.motherId);
+    if (!mother) return undefined;
+    const insems = safeEventsArray(mother.events)
+        .filter(e => e && e.type === EventType.INSEMINATION && e.relatedId)
+        .sort((a, b) => b.date.localeCompare(a.date)); // 新しい順
+    if (insems.length === 0) return undefined;
+    if (calf.birthDate) {
+        const before = insems.find(e => e.date <= calf.birthDate);
+        if (before) return before.relatedId;
+    }
+    return insems[0].relatedId;
+};

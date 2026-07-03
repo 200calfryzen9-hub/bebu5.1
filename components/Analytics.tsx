@@ -262,14 +262,49 @@ export const Analytics: React.FC<AnalyticsProps> = ({ cows, calves, settings, on
                   const groupCows = cows.filter(c => !c.isRemoved && c.groupId === group.id);
                   if (groupCows.length === 0) return null; // Skip empty groups visually
 
+                  // ★グループ内の注意情報を集計
+                  const todayD = new Date();
+                  const getAlertFlags = (cow: Cow) => {
+                      let estrusAlert = false;   // 再発情注意 (種付後21日±3日)
+                      let calvingAlert = false;  // 分娩予定注意 (14日以内)
+                      let estrusOverdue = false; // 再発情確認日超過
+                      let calvingOverdue = false;// 分娩予定日超過
+                      if (cow.status === BreedingStatus.INSEMINATED && cow.lastInseminationDate) {
+                          const d = daysBetween(todayD, new Date(cow.lastInseminationDate));
+                          if (d >= 18 && d <= 24) estrusAlert = true;
+                          if (d > 24 && d < 40) estrusOverdue = true; // 21日チェック期間を過ぎて妊鑑前
+                      }
+                      if (cow.expectedCalvingDate && (cow.status === BreedingStatus.PREGNANT || cow.status === BreedingStatus.CALVING_SOON || cow.status === BreedingStatus.INSEMINATED)) {
+                          const d = daysBetween(new Date(cow.expectedCalvingDate), todayD);
+                          if (d >= 0 && d <= 14) calvingAlert = true;
+                          if (d < 0) calvingOverdue = true;
+                      }
+                      return { estrusAlert, calvingAlert, estrusOverdue, calvingOverdue };
+                  };
+                  const estrusCount = groupCows.filter(c => { const f = getAlertFlags(c); return f.estrusAlert || f.estrusOverdue; }).length;
+                  const calvingCount = groupCows.filter(c => { const f = getAlertFlags(c); return f.calvingAlert || f.calvingOverdue; }).length;
+
                   return (
                       <div key={group.id} className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
                           <div className="bg-wagyu-600 text-white p-3 font-bold text-sm flex justify-between items-center">
                               <span>{group.name}</span>
-                              <span className="text-xs bg-wagyu-700 px-2 py-0.5 rounded-full">{groupCows.length}頭</span>
+                              <div className="flex items-center gap-1.5">
+                                  {estrusCount > 0 && (
+                                      <span className="text-[10px] bg-blue-500 px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                                          👀 再発情 {estrusCount}
+                                      </span>
+                                  )}
+                                  {calvingCount > 0 && (
+                                      <span className="text-[10px] bg-pink-500 px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                                          🍼 分娩 {calvingCount}
+                                      </span>
+                                  )}
+                                  <span className="text-xs bg-wagyu-700 px-2 py-0.5 rounded-full">{groupCows.length}頭</span>
+                              </div>
                           </div>
                           <div className="p-3 grid grid-cols-2 gap-2">
                               {groupCows.map(cow => {
+                                  const flags = getAlertFlags(cow);
                                   // Determine status badge colors and short text
                                   let bgColor = 'bg-white';
                                   let textColor = 'text-gray-600';
@@ -280,11 +315,11 @@ export const Analytics: React.FC<AnalyticsProps> = ({ cows, calves, settings, on
                                       bgColor = customBg;
                                       textColor = "text-gray-900"; // Assuming light custom bgs
                                   } else {
-                                      if (cow.status === BreedingStatus.EMPTY) { bgColor = 'bg-red-50'; textColor = 'text-red-700'; shortStatus = '空胎'; }
-                                      else if (cow.status === BreedingStatus.INSEMINATED) { bgColor = 'bg-blue-50'; textColor = 'text-blue-700'; shortStatus = '種付済'; }
-                                      else if (cow.status === BreedingStatus.PREGNANT) { bgColor = 'bg-green-50'; textColor = 'text-green-700'; shortStatus = '妊娠中'; }
-                                      else if (cow.status === BreedingStatus.RECOVERY) { bgColor = 'bg-gray-100'; textColor = 'text-gray-600'; shortStatus = '休養'; }
-                                      else if (cow.status === BreedingStatus.CALVING_SOON) { bgColor = 'bg-purple-50'; textColor = 'text-purple-700'; shortStatus = '分娩間近'; }
+                                      if (cow.status === BreedingStatus.EMPTY) { bgColor = 'bg-red-50'; textColor = 'text-red-700'; }
+                                      else if (cow.status === BreedingStatus.INSEMINATED) { bgColor = 'bg-blue-50'; textColor = 'text-blue-700'; }
+                                      else if (cow.status === BreedingStatus.PREGNANT) { bgColor = 'bg-green-50'; textColor = 'text-green-700'; }
+                                      else if (cow.status === BreedingStatus.RECOVERY) { bgColor = 'bg-gray-100'; textColor = 'text-gray-600'; }
+                                      else if (cow.status === BreedingStatus.CALVING_SOON) { bgColor = 'bg-purple-50'; textColor = 'text-purple-700'; }
                                   }
 
                                   if (cow.status === BreedingStatus.EMPTY) shortStatus = '空胎';
@@ -304,13 +339,29 @@ export const Analytics: React.FC<AnalyticsProps> = ({ cows, calves, settings, on
                                   }
 
                                   const displayId = cow.earTag.length >= 5 ? cow.earTag.slice(-5) : cow.earTag;
+                                  // ★予定超過の牛は枠を強調
+                                  const overdueRing = (flags.calvingOverdue || flags.estrusOverdue) ? 'ring-2 ring-red-400' : '';
 
                                   return (
                                       <div 
                                           key={cow.id} 
                                           onClick={() => onCowClick && onCowClick(cow.id)}
-                                          className={`p-2 rounded border border-gray-200 flex flex-col justify-between cursor-pointer hover:opacity-80 active:scale-95 transition-all ${bgColor}`}
+                                          className={`p-2 rounded border border-gray-200 flex flex-col justify-between cursor-pointer hover:opacity-80 active:scale-95 transition-all relative ${bgColor} ${overdueRing}`}
                                       >
+                                          {/* ★点滅アイコン: 予定超過 */}
+                                          {flags.calvingOverdue && (
+                                              <span className="absolute -top-1.5 -right-1.5 text-sm animate-blink" title="分娩予定日超過">🚨</span>
+                                          )}
+                                          {!flags.calvingOverdue && flags.estrusOverdue && (
+                                              <span className="absolute -top-1.5 -right-1.5 text-sm animate-blink" title="再発情確認超過">⚠️</span>
+                                          )}
+                                          {/* 注意バッジ: 予定日前 */}
+                                          {!flags.calvingOverdue && flags.calvingAlert && (
+                                              <span className="absolute -top-1.5 -right-1.5 text-sm" title="分娩間近">🍼</span>
+                                          )}
+                                          {!flags.estrusOverdue && flags.estrusAlert && !flags.calvingAlert && !flags.calvingOverdue && (
+                                              <span className="absolute -top-1.5 -right-1.5 text-sm" title="再発情チェック時期">👀</span>
+                                          )}
                                           <div className="flex flex-col items-start gap-0.5">
                                               <span className={`font-bold text-xs ${textColor} truncate w-full`}>{displayId} {cow.name}</span>
                                           </div>

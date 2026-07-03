@@ -141,3 +141,12 @@ body {
     radial-gradient(circle at -10% 110%, rgba(255,255,255,0.10) 0%, transparent 40%);
   pointer-events: none;
 }
+
+/* 🚨 予定超過アラート点滅 */
+.animate-blink {
+  animation: blink-alert 1s ease-in-out infinite;
+}
+@keyframes blink-alert {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.25; transform: scale(1.15); }
+}

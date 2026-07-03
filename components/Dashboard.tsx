@@ -1,9 +1,9 @@
 
 import React from 'react';
 import { Cow, DashboardAlert, GeneralEvent } from '../types';
-import { Bell, AlertTriangle, Calendar, CheckCircle } from 'lucide-react';
+import { Bell, AlertTriangle, Calendar, CheckCircle, Sparkles } from 'lucide-react';
 import { CalendarView } from './CalendarView';
-import { getCalendarEvents, formatDateJP, parseDate, daysBetween } from '../utils/breedingService';
+import { getCalendarEvents, formatDateJP, parseDate, daysBetween, calculateBreedingScore } from '../utils/breedingService';
 
 interface DashboardProps {
   cows: Cow[];
@@ -31,14 +31,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ cows, alerts, onCowClick, 
       }))
   ];
 
+  const { score, grade } = calculateBreedingScore(cows);
+  const gradeColors: Record<string, string> = {
+    S: 'text-yellow-300', A: 'text-wagyu-200', B: 'text-blue-200', C: 'text-orange-200', 'N/A': 'text-gray-300',
+  };
+
   return (
-    <div className="p-4 space-y-6 pb-24">
-      <header className="flex justify-between items-center mb-2">
-        <div>
-            <h1 className="text-2xl font-bold text-gray-900">和牛メイト</h1>
-            <p className="text-sm text-gray-500">{formatDateJP(new Date())} の作業</p>
+    <div className="p-4 space-y-6 pb-28">
+      <header className="hero-gradient rounded-3xl p-5 text-white shadow-glow">
+        <div className="flex justify-between items-start">
+            <div>
+                <h1 className="text-2xl font-bold tracking-tight">和牛メイト</h1>
+                <p className="text-sm text-wagyu-100 mt-0.5">{formatDateJP(new Date())}</p>
+            </div>
+            <div className="flex flex-col items-center bg-white/10 rounded-2xl px-4 py-2 backdrop-blur-sm border border-white/10">
+                <div className="flex items-center gap-1 text-[10px] font-bold text-wagyu-100 uppercase tracking-wider">
+                    <Sparkles size={12} /> 繁殖スコア
+                </div>
+                <div className={`text-3xl font-extrabold leading-tight ${gradeColors[grade] || 'text-white'}`}>
+                    {grade}
+                </div>
+                <div className="text-[11px] text-wagyu-100">{score}点</div>
+            </div>
         </div>
-        {/* Bell icon removed as requested */}
       </header>
 
       {/* Calendar Section */}
@@ -90,7 +105,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ cows, alerts, onCowClick, 
                   <div 
                     key={cow.id} 
                     onClick={() => onCowClick(cow.id)}
-                    className="bg-pink-50 border-l-4 border-pink-500 p-4 rounded-r-lg shadow-sm active:scale-95 transition-transform"
+                    className="bg-pink-50 border-l-4 border-pink-500 p-4 rounded-2xl shadow-soft tap-card"
                   >
                     <div className="flex justify-between items-start">
                         <div>
@@ -121,7 +136,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ cows, alerts, onCowClick, 
               <div 
                 key={alert.id} 
                 onClick={() => onCowClick(alert.cowId)}
-                className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg shadow-sm active:scale-95 transition-transform"
+                className="bg-red-50 border-l-4 border-red-500 p-4 rounded-2xl shadow-soft tap-card"
               >
                 <div className="flex justify-between items-start">
                     <div>
@@ -150,7 +165,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ cows, alerts, onCowClick, 
               <div 
                 key={alert.id}
                 onClick={() => onCowClick(alert.cowId)}
-                className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg shadow-sm active:scale-95 transition-transform"
+                className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-2xl shadow-soft tap-card"
               >
                  <div className="flex justify-between items-start">
                     <div>
@@ -180,7 +195,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ cows, alerts, onCowClick, 
                 <div 
                     key={alert.id}
                     onClick={() => onCowClick(alert.cowId)}
-                    className="bg-white border border-gray-100 p-3 rounded-lg shadow-sm flex items-center justify-between active:bg-gray-50"
+                    className="bg-white border border-gray-100 p-3 rounded-2xl shadow-soft flex items-center justify-between tap-card"
                 >
                     <div className="flex items-center">
                         <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold mr-3">
@@ -198,16 +213,40 @@ export const Dashboard: React.FC<DashboardProps> = ({ cows, alerts, onCowClick, 
       </section>
 
       {/* Quick Stats Grid */}
-      <section className="grid grid-cols-2 gap-3 mt-4">
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center">
-              <div className="text-2xl font-bold text-gray-800">{cows.length}</div>
-              <div className="text-xs text-gray-500 uppercase tracking-wider">総頭数</div>
-          </div>
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center">
-              <div className="text-2xl font-bold text-wagyu-600">
-                {cows.filter(c => c.status === 'PREGNANT').length}
+      <section className="grid grid-cols-2 gap-3">
+          <div className="bg-white p-4 rounded-2xl shadow-soft border border-gray-100">
+              <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">総頭数</span>
+                  <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm">🐄</div>
               </div>
-              <div className="text-xs text-gray-500 uppercase tracking-wider">妊娠中</div>
+              <div className="text-3xl font-extrabold text-gray-800 mt-1">{cows.filter(c => !c.isRemoved).length}</div>
+          </div>
+          <div className="bg-white p-4 rounded-2xl shadow-soft border border-gray-100">
+              <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">妊娠中</span>
+                  <div className="w-8 h-8 rounded-full bg-wagyu-50 flex items-center justify-center text-sm">🤰</div>
+              </div>
+              <div className="text-3xl font-extrabold text-wagyu-600 mt-1">
+                {cows.filter(c => c.status === 'PREGNANT' || c.status === 'CALVING_SOON').length}
+              </div>
+          </div>
+          <div className="bg-white p-4 rounded-2xl shadow-soft border border-gray-100">
+              <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">種付済</span>
+                  <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-sm">💉</div>
+              </div>
+              <div className="text-3xl font-extrabold text-blue-600 mt-1">
+                {cows.filter(c => c.status === 'INSEMINATED').length}
+              </div>
+          </div>
+          <div className="bg-white p-4 rounded-2xl shadow-soft border border-gray-100">
+              <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">空胎</span>
+                  <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center text-sm">⚠️</div>
+              </div>
+              <div className="text-3xl font-extrabold text-red-500 mt-1">
+                {cows.filter(c => c.status === 'EMPTY' && !c.isRemoved).length}
+              </div>
           </div>
       </section>
     </div>

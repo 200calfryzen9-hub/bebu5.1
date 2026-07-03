@@ -174,7 +174,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
         let cowCsvContent = "耳標番号,名号,生年月日,父牛,母の父,種付け年月日,種付け種雄牛,分娩年月日,メモ内容\n";
         
         cows.forEach(cow => {
-            const lastInsemEvent = cow.events.filter(e => e.type === EventType.INSEMINATION).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+            const lastInsemEvent = (Array.isArray(cow.events) ? cow.events : Object.values(cow.events || {}) as any[]).filter(e => e.type === EventType.INSEMINATION).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
             const bullName = lastInsemEvent?.relatedId || '';
             const notesText = (cow.notes || []).map(n => `[${n.isTodo ? (n.isDone ? '済' : '未') : 'メモ'}] ${n.text}`).join(' / ').replace(/"/g, '""');
 
@@ -267,13 +267,13 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, cows, calv
             return trimmed.length >= 5 ? trimmed.slice(-5) : trimmed;
         };
 
-        const getParity = (cow: Cow) => cow.events.filter(e => e.type === EventType.CALVING).length;
+        const getParity = (cow: Cow) => (Array.isArray(cow.events) ? cow.events : Object.values(cow.events || {}) as any[]).filter(e => e.type === EventType.CALVING).length;
 
         const getAiCountSinceLastCalving = (cow: Cow) => {
-            const calvingEvents = cow.events.filter(e => e.type === EventType.CALVING).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            const calvingEvents = (Array.isArray(cow.events) ? cow.events : Object.values(cow.events || {}) as any[]).filter(e => e.type === EventType.CALVING).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             const lastCalvingDate = calvingEvents.length > 0 ? calvingEvents[0].date : null;
             
-            const inseminationEvents = cow.events.filter(e => e.type === EventType.INSEMINATION);
+            const inseminationEvents = (Array.isArray(cow.events) ? cow.events : Object.values(cow.events || {}) as any[]).filter(e => e.type === EventType.INSEMINATION);
             if (lastCalvingDate) {
                 return inseminationEvents.filter(e => new Date(e.date).getTime() > new Date(lastCalvingDate).getTime()).length;
             } else {
