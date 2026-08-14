@@ -85,7 +85,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ cows, calves, alerts, onCo
   };
 
   const urgentAlerts = alerts.filter(a => a.type === 'URGENT' && !a.id.startsWith('calving-'));
-  const warningAlerts = alerts.filter(a => a.type === 'WARNING' && !a.id.startsWith('calving-'));
   const infoAlerts = alerts.filter(a => a.type === 'INFO');
   
   // Merge cow events and general events
@@ -307,32 +306,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ cows, calves, alerts, onCo
                     <span className="text-xs font-mono bg-white px-2 py-1 rounded border border-red-100 text-red-500">
                         {formatDateJP(alert.date, 'short')}
                     </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Warning/Suggestion Section */}
-      {warningAlerts.length > 0 && (
-        <section>
-          <h2 className="text-lg font-bold text-amber-600 mb-2 flex items-center">
-            <Calendar className="mr-2" size={20} />
-            種付け誘導・注意 ({warningAlerts.length})
-          </h2>
-          <div className="space-y-3">
-            {warningAlerts.map(alert => (
-              <div 
-                key={alert.id}
-                onClick={() => onCowClick(alert.cowId)}
-                className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-2xl shadow-soft tap-card"
-              >
-                 <div className="flex justify-between items-start">
-                    <div>
-                        <h3 className="font-bold text-amber-900">{alert.cowName}</h3>
-                        <p className="text-sm text-amber-700">{alert.message}</p>
-                    </div>
                 </div>
               </div>
             ))}
