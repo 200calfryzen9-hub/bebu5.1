@@ -3,10 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { Cow, BreedingStatus, EventType, Calf, BreedingEvent, Note, Settings as SettingsType } from '../types';
 import { ArrowLeft, Syringe, Baby, Activity, TrendingUp, History, Star, Pill, Plus, X, Trash2, Zap, Trophy, AlertTriangle, GitFork, Calendar, Pencil, Save, Dna, ShoppingBag, Stethoscope, Check, Minus, CheckCircle2, Circle } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { GESTATION_DAYS } from '../constants';
+import { GESTATION_DAYS, COMMON_MEMO_TAGS } from '../constants';
 import { addDays, formatDate, formatDateJP, daysBetween, parseDate, calculateAge } from '../utils/breedingService';
 
 import { MemoLine } from './MemoLine';
+import { EraDateInput } from './EraDateInput';
 
 interface CowDetailProps {
   cow: Cow;
@@ -105,14 +106,14 @@ export const CowDetail: React.FC<CowDetailProps> = ({
     setSelectedBull('');
   };
   const handleCalving = () => {
-      const lastInsem = cow.events.filter(e => e.type === EventType.INSEMINATION).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-      const finalBull = calvingBull || (lastInsem ? lastInsem.relatedId : '') || '不明';
+      // ★安全版: eventsがFirebase由来のオブジェクト型でも動作する
+      const finalBull = calvingBull || getLastBullName() || '';
 
       onAddEvent(cow.id, {
           type: EventType.CALVING,
           date: calvingDate,
-          details: `産子: ${calfSex === 'MALE' ? 'オス' : 'メス'}, 状態: ${calvingDifficulty}, 父: ${finalBull}`,
-          metadata: { difficulty: calvingDifficulty, calfSex, fatherName: finalBull }
+          details: `産子: ${calfSex === 'MALE' ? 'オス' : 'メス'}, 状態: ${calvingDifficulty}${finalBull ? `, 父: ${finalBull}` : ''}`,
+          metadata: { difficulty: calvingDifficulty, calfSex, fatherName: finalBull || undefined }
       });
       const newCalf: Calf = {
           id: Date.now().toString(),
@@ -120,7 +121,7 @@ export const CowDetail: React.FC<CowDetailProps> = ({
           birthDate: calvingDate,
           sex: calfSex,
           earTag: '',
-          fatherName: finalBull === '不明' ? undefined : finalBull
+          fatherName: finalBull || undefined
       };
       onAddCalf(newCalf);
       setShowCalvingModal(false);
@@ -238,18 +239,8 @@ export const CowDetail: React.FC<CowDetailProps> = ({
   // Logic to guess bull for calving
   useEffect(() => {
       if (showCalvingModal) {
-          // Find the last insemination event
-          // Ideally check date around 285 days ago, but last one usually works for single active pregnancy
-          const lastInsem = [...(cow.events || [])]
-            .filter(e => e.type === EventType.INSEMINATION)
-            .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-            .pop();
-            
-          if (lastInsem && lastInsem.relatedId) {
-              setCalvingBull(lastInsem.relatedId);
-          } else {
-              setCalvingBull('');
-          }
+          // ★安全版: 種付履歴の最新種雄牛を自動セット（オブジェクト型events対応）
+          setCalvingBull(getLastBullName());
       }
   }, [showCalvingModal, cow.events]);
 
@@ -346,12 +337,7 @@ export const CowDetail: React.FC<CowDetailProps> = ({
         <button 
             onClick={() => { 
                 setCalvingDate(todayStr); 
-                const lastInsem = cow.events.filter(e => e.type === EventType.INSEMINATION).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-                if (lastInsem && lastInsem.relatedId) {
-                    setCalvingBull(lastInsem.relatedId);
-                } else {
-                    setCalvingBull('');
-                }
+                setCalvingBull(getLastBullName()); // ★安全版: 種付履歴から自動セット
                 setShowCalvingModal(true); 
             }}
             className="flex flex-col items-center justify-center p-3 bg-pink-500 text-white rounded-xl shadow-lg active:bg-pink-600 transition-colors"
@@ -451,6 +437,7 @@ export const CowDetail: React.FC<CowDetailProps> = ({
                       }}
                       onDeleteNote={() => {}} // Notes deleted from timeline
                       hideNotesList={true}
+                      quickTags={COMMON_MEMO_TAGS}
                   />
               </div>
 
@@ -671,7 +658,7 @@ export const CowDetail: React.FC<CowDetailProps> = ({
                       <input type="date" value={insemDate} onChange={(e) => setInsemDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg mb-2" />
                       <label className="block text-sm font-medium text-gray-700 mb-2">種雄牛</label>
                       <div className="flex gap-2 mb-2">
-                        <input type="text" placeholder="種雄牛名" value={selectedBull} onChange={(e) => setSelectedBull(e.target.value)} className="flex-1 p-2 border border-gray-300 rounded-lg"/>
+                        <input type="text" placeholder="種雄牛名" list="bull-candidates" value={selectedBull} onChange={(e) => setSelectedBull(e.target.value)} className="flex-1 p-2 border border-gray-300 rounded-lg"/>
                          {/* Ensure add button is visible */}
                          <button onClick={handleAddBullToList} disabled={!selectedBull} className="p-2 rounded-lg border text-wagyu-600 border-wagyu-500 bg-wagyu-50 active:bg-wagyu-100"><Plus size={20} /></button>
                       </div>
@@ -822,11 +809,11 @@ export const CowDetail: React.FC<CowDetailProps> = ({
               <div className="bg-white w-full max-w-sm rounded-xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
                   <h3 className="text-lg font-bold mb-4">母牛情報の編集</h3>
                   <div className="space-y-3 mb-6">
-                      <input className="w-full p-2 border rounded-lg" placeholder="耳標番号" value={editFormData.earTag} onChange={e => setEditFormData({...editFormData, earTag: e.target.value})} />
+                      <input className="w-full p-2 border rounded-lg" placeholder="耳標番号" inputMode="numeric" pattern="[0-9]*" value={editFormData.earTag} onChange={e => setEditFormData({...editFormData, earTag: e.target.value})} />
                       <input className="w-full p-2 border rounded-lg" placeholder="名号" value={editFormData.name} onChange={e => setEditFormData({...editFormData, name: e.target.value})} />
-                      <input className="w-full p-2 border rounded-lg" type="date" value={editFormData.birthDate} onChange={e => setEditFormData({...editFormData, birthDate: e.target.value})} />
-                      <input className="w-full p-2 border rounded-lg" placeholder="父牛" value={editFormData.fatherName} onChange={e => setEditFormData({...editFormData, fatherName: e.target.value})} />
-                      <input className="w-full p-2 border rounded-lg" placeholder="母の父" value={editFormData.motherFatherName} onChange={e => setEditFormData({...editFormData, motherFatherName: e.target.value})} />
+                      <EraDateInput value={editFormData.birthDate} onChange={val => setEditFormData({...editFormData, birthDate: val})} />
+                      <input className="w-full p-2 border rounded-lg" placeholder="父牛" list="bull-candidates" value={editFormData.fatherName} onChange={e => setEditFormData({...editFormData, fatherName: e.target.value})} />
+                      <input className="w-full p-2 border rounded-lg" placeholder="母の父" list="bull-candidates" value={editFormData.motherFatherName} onChange={e => setEditFormData({...editFormData, motherFatherName: e.target.value})} />
                       <select 
                           className="w-full p-2 border rounded-lg text-gray-700" 
                           value={editFormData.groupId} 
@@ -856,7 +843,7 @@ export const CowDetail: React.FC<CowDetailProps> = ({
                   <div className="space-y-3 mb-6">
                       <div>
                           <label className="text-xs text-gray-500">個体識別番号(任意)</label>
-                          <input className="w-full p-2 border rounded-lg" placeholder="1234567890" value={calfForm.earTag} onChange={e => setCalfForm({...calfForm, earTag: e.target.value})} />
+                          <input className="w-full p-2 border rounded-lg" placeholder="1234567890" inputMode="numeric" pattern="[0-9]*" value={calfForm.earTag} onChange={e => setCalfForm({...calfForm, earTag: e.target.value})} />
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                           <div>
@@ -876,6 +863,7 @@ export const CowDetail: React.FC<CowDetailProps> = ({
                           <input
                               className={`w-full p-2 border rounded-lg mt-1 ${calfForm.fatherName ? 'border-wagyu-300 bg-wagyu-50' : 'border-gray-300'}`}
                               placeholder="例: 福之姫"
+                              list="bull-candidates"
                               value={calfForm.fatherName}
                               onChange={e => setCalfForm({...calfForm, fatherName: e.target.value})}
                           />

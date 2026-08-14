@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Calf, Cow, BreedingEvent } from '../types';
 import { ArrowLeft, Edit, Save, Trash2 } from 'lucide-react';
 import { calculateAge, formatDateJP } from '../utils/breedingService';
+import { COMMON_MEMO_TAGS } from '../constants';
 import { EraDateInput } from './EraDateInput';
 import { MemoLine } from './MemoLine';
 
@@ -65,7 +66,7 @@ export const CalfDetail: React.FC<CalfDetailProps> = ({ calf, allCows, onBack, o
 
     const displayPrice = editForm.price ? Math.round(editForm.price / 1000).toString() : '';
     const mother = calf.motherId ? allCows.find(c => c.id === calf.motherId) : null;
-    
+
     return (
         <div className="flex flex-col h-full bg-gray-50 pb-20 overflow-y-auto">
             {/* Header */}
@@ -174,7 +175,7 @@ export const CalfDetail: React.FC<CalfDetailProps> = ({ calf, allCows, onBack, o
                         </div>
                         <div>
                             <label className="text-xs text-gray-500 block mb-1">個体識別番号</label>
-                            <input className="w-full p-2 border rounded-lg" value={editForm.earTag || ''} onChange={e => setEditForm({...editForm, earTag: e.target.value})} />
+                            <input className="w-full p-2 border rounded-lg" inputMode="numeric" pattern="[0-9]*" value={editForm.earTag || ''} onChange={e => setEditForm({...editForm, earTag: e.target.value})} />
                         </div>
                         <EraDateInput
                             label="生年月日"
@@ -219,6 +220,7 @@ export const CalfDetail: React.FC<CalfDetailProps> = ({ calf, allCows, onBack, o
                             <label className="text-xs text-gray-500 block mb-1">種雄牛 (父)</label>
                             <input
                                 className={`w-full p-2 border rounded-lg ${editForm.fatherName ? 'border-wagyu-300 bg-wagyu-50' : ''}`}
+                                list="bull-candidates"
                                 value={editForm.fatherName || ''}
                                 onChange={e => { setEditForm({...editForm, fatherName: e.target.value}); setAutoFilled(false); }}
                             />
@@ -272,6 +274,7 @@ export const CalfDetail: React.FC<CalfDetailProps> = ({ calf, allCows, onBack, o
                             const newNoteList = (calf.notes || []).map(n => n.id === note.id ? note : n);
                             onUpdate({ ...calf, notes: newNoteList });
                         }}
+                        quickTags={COMMON_MEMO_TAGS}
                     />
                 )}
             </div>

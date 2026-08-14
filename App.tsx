@@ -299,7 +299,7 @@ export default function App() {
 
   let tabContent;
   switch (activeTab) {
-    case 'dashboard': tabContent = ( <Dashboard cows={cows} alerts={alerts} onCowClick={handleCowClick} generalEvents={generalEvents} onAddGeneralEvent={handleAddGeneralEvent} /> ); break;
+    case 'dashboard': tabContent = ( <Dashboard cows={cows} calves={calves} alerts={alerts} onCowClick={handleCowClick} generalEvents={generalEvents} onAddGeneralEvent={handleAddGeneralEvent} onUpdateCow={handleUpdateCow} onUpdateCalf={handleUpdateCalf} /> ); break;
     case 'list': tabContent = <CowList cows={cows} onCowClick={handleCowClick} settings={settings} onAddCow={handleAddCow} lastViewedCowId={lastViewedCowId} />; break;
     case 'calves': tabContent = <CalfList calves={enrichedCalves} onCalfClick={handleCalfClick} onAddCalfClick={() => {
         const newCalf: Calf = {
@@ -312,14 +312,24 @@ export default function App() {
     }} />; break;
     case 'analytics': tabContent = ( <Analytics cows={cows} calves={calves} settings={settings} onResetData={handleResetSalesData} onCowClick={handleCowClick} /> ); break;
     case 'settings': tabContent = ( <Settings settings={settings} onSave={setSettings} cows={cows} calves={calves} generalEvents={generalEvents} bullList={bullList} onImportCows={handleImportCows} onRestoreBackup={(restoredCows, restoredCalves, restoredSettings, restoredGeneralEvents, restoredBullList) => { setCows(restoredCows); setCalves(restoredCalves); setSettings(restoredSettings); if(restoredGeneralEvents) setGeneralEvents(restoredGeneralEvents); if(restoredBullList) setBullList(restoredBullList); }} /> ); break;
-    default: tabContent = ( <Dashboard cows={cows} alerts={alerts} onCowClick={handleCowClick} generalEvents={generalEvents} onAddGeneralEvent={handleAddGeneralEvent} /> );
+    default: tabContent = ( <Dashboard cows={cows} calves={calves} alerts={alerts} onCowClick={handleCowClick} generalEvents={generalEvents} onAddGeneralEvent={handleAddGeneralEvent} onUpdateCow={handleUpdateCow} onUpdateCalf={handleUpdateCalf} /> );
   }
 
   const targetCow = selectedCowId ? cows.find(c => c.id === selectedCowId) : null;
   const targetCalf = selectedCalfId ? enrichedCalves.find(c => c.id === selectedCalfId) : null;
 
+  // 父牛・母の父の入力候補（種雄牛リスト + これまでに登録された父牛名）。全画面共通の1つのdatalistを参照する。
+  const bullCandidates = Array.from(new Set([
+      ...bullList,
+      ...cows.map(c => c.fatherName),
+      ...cows.map(c => c.motherFatherName),
+  ].filter((v): v is string => !!v))).sort((a, b) => a.localeCompare(b, 'ja'));
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 font-sans max-w-md mx-auto relative shadow-2xl overflow-hidden">
+        <datalist id="bull-candidates">
+            {bullCandidates.map(name => <option key={name} value={name} />)}
+        </datalist>
         {settings.sync?.enabled && ( <div className={`absolute top-0 right-0 p-2 z-50 ${syncStatus === 'ONLINE' ? 'text-green-500' : 'text-gray-400'}`}> {syncStatus === 'ONLINE' ? <Wifi size={16} /> : <WifiOff size={16} />} </div> )}
         <main className="h-screen overflow-hidden flex flex-col">
             <div className={`flex-1 overflow-y-auto relative scroll-smooth ${targetCow || targetCalf ? 'hidden' : 'block'}`}>

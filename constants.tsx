@@ -33,3 +33,8 @@ export const MOCK_BULLS = [
 // Rule: Month - 3, Day + 10 (approx 285 days)
 export const GESTATION_DAYS = 285;
 export const ESTRUS_CYCLE_DAYS = 21;
+
+// メモ入力時にポップアップから選べる、よくある症状・作業の候補
+export const COMMON_MEMO_TAGS = [
+  "下痢", "かぜ", "発熱", "せき", "肺炎", "去勢", "アイボメック", "TSV", "バイコックス"
+];
