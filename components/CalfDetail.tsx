@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Calf, Cow, BreedingEvent } from '../types';
-import { ArrowLeft, Edit, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, Edit, Save, Trash2, ScanLine } from 'lucide-react';
 import { calculateAge, formatDateJP } from '../utils/breedingService';
+import { COMMON_MEMO_TAGS } from '../constants';
 import { EraDateInput } from './EraDateInput';
 import { MemoLine } from './MemoLine';
+import { ReceiptScanner } from './ReceiptScanner';
 
 interface CalfDetailProps {
     calf: Calf;
@@ -38,6 +40,7 @@ export const CalfDetail: React.FC<CalfDetailProps> = ({ calf, allCows, onBack, o
     const [activeTab, setActiveTab] = useState<'INFO' | 'MEMO'>('INFO');
     const [deleteStep, setDeleteStep] = useState(0);
     const [autoFilled, setAutoFilled] = useState(false);
+    const [showScanner, setShowScanner] = useState(false);
 
     // ★編集モードに入った瞬間、母牛が設定済みで父牛が空なら自動補完
     useEffect(() => {
@@ -63,9 +66,13 @@ export const CalfDetail: React.FC<CalfDetailProps> = ({ calf, allCows, onBack, o
         onBack();
     };
 
+    const handleScanExtract = (data: Partial<Calf>) => {
+        setEditForm(prev => ({ ...prev, ...data }));
+    };
+
     const displayPrice = editForm.price ? Math.round(editForm.price / 1000).toString() : '';
     const mother = calf.motherId ? allCows.find(c => c.id === calf.motherId) : null;
-    
+
     return (
         <div className="flex flex-col h-full bg-gray-50 pb-20 overflow-y-auto">
             {/* Header */}
@@ -74,11 +81,20 @@ export const CalfDetail: React.FC<CalfDetailProps> = ({ calf, allCows, onBack, o
                 <div className="font-bold flex-1 text-center truncate px-2">
                     {calf.name || '名前未設定'}
                 </div>
-                {!isEditing ? (
-                    <button onClick={() => setIsEditing(true)} className="p-2 -mr-2 bg-white/20 rounded-full active:bg-white/30"><Edit size={18} /></button>
-                ) : (
-                    <button onClick={handleSave} className="p-2 -mr-2 bg-green-500 rounded-full active:bg-green-600 shadow-sm"><Save size={18} /></button>
-                )}
+                <div className="flex items-center gap-2 -mr-2">
+                    <button
+                        onClick={() => { setIsEditing(true); setShowScanner(true); }}
+                        className="p-2 bg-white/20 rounded-full active:bg-white/30"
+                        title="伝票をスキャン"
+                    >
+                        <ScanLine size={18} />
+                    </button>
+                    {!isEditing ? (
+                        <button onClick={() => setIsEditing(true)} className="p-2 bg-white/20 rounded-full active:bg-white/30"><Edit size={18} /></button>
+                    ) : (
+                        <button onClick={handleSave} className="p-2 bg-green-500 rounded-full active:bg-green-600 shadow-sm"><Save size={18} /></button>
+                    )}
+                </div>
             </header>
 
             {/* Quick Info */}
@@ -142,6 +158,8 @@ export const CalfDetail: React.FC<CalfDetailProps> = ({ calf, allCows, onBack, o
                                 <div><p className="text-[10px] text-gray-400 mb-0.5">生年月日</p><p className="font-medium text-sm">{formatDateJP(calf.birthDate)}</p></div>
                                 <div><p className="text-[10px] text-gray-400 mb-0.5">母牛</p><p className="font-medium text-sm">{calf.motherId ? allCows.find(c => c.id === calf.motherId)?.name || '未設定' : '未設定'}</p></div>
                                 <div><p className="text-[10px] text-gray-400 mb-0.5">種雄牛 (父)</p><p className="font-medium text-sm">{calf.fatherName || '未設定'}</p></div>
+                                <div><p className="text-[10px] text-gray-400 mb-0.5">母の父</p><p className="font-medium text-sm">{calf.motherFatherName || '未設定'}</p></div>
+                                <div><p className="text-[10px] text-gray-400 mb-0.5">母の母の父</p><p className="font-medium text-sm">{calf.motherMotherFatherName || '未設定'}</p></div>
                             </div>
                         </div>
 
@@ -174,7 +192,7 @@ export const CalfDetail: React.FC<CalfDetailProps> = ({ calf, allCows, onBack, o
                         </div>
                         <div>
                             <label className="text-xs text-gray-500 block mb-1">個体識別番号</label>
-                            <input className="w-full p-2 border rounded-lg" value={editForm.earTag || ''} onChange={e => setEditForm({...editForm, earTag: e.target.value})} />
+                            <input className="w-full p-2 border rounded-lg" inputMode="numeric" pattern="[0-9]*" value={editForm.earTag || ''} onChange={e => setEditForm({...editForm, earTag: e.target.value})} />
                         </div>
                         <EraDateInput
                             label="生年月日"
@@ -219,6 +237,7 @@ export const CalfDetail: React.FC<CalfDetailProps> = ({ calf, allCows, onBack, o
                             <label className="text-xs text-gray-500 block mb-1">種雄牛 (父)</label>
                             <input
                                 className={`w-full p-2 border rounded-lg ${editForm.fatherName ? 'border-wagyu-300 bg-wagyu-50' : ''}`}
+                                list="bull-candidates"
                                 value={editForm.fatherName || ''}
                                 onChange={e => { setEditForm({...editForm, fatherName: e.target.value}); setAutoFilled(false); }}
                             />
@@ -229,7 +248,25 @@ export const CalfDetail: React.FC<CalfDetailProps> = ({ calf, allCows, onBack, o
                                 <p className="text-[10px] text-orange-500 mt-0.5">⚠️ 母牛に種付記録がないため自動入力できません</p>
                             )}
                         </div>
-                        
+                        <div>
+                            <label className="text-xs text-gray-500 block mb-1">母の父</label>
+                            <input
+                                className="w-full p-2 border rounded-lg"
+                                list="bull-candidates"
+                                value={editForm.motherFatherName || ''}
+                                onChange={e => setEditForm({...editForm, motherFatherName: e.target.value})}
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs text-gray-500 block mb-1">母の母の父</label>
+                            <input
+                                className="w-full p-2 border rounded-lg"
+                                list="bull-candidates"
+                                value={editForm.motherMotherFatherName || ''}
+                                onChange={e => setEditForm({...editForm, motherMotherFatherName: e.target.value})}
+                            />
+                        </div>
+
                         <div className="border-t border-gray-100 pt-4 mt-2">
                              <EraDateInput
                                 label="せり月(出荷月)"
@@ -272,9 +309,17 @@ export const CalfDetail: React.FC<CalfDetailProps> = ({ calf, allCows, onBack, o
                             const newNoteList = (calf.notes || []).map(n => n.id === note.id ? note : n);
                             onUpdate({ ...calf, notes: newNoteList });
                         }}
+                        quickTags={COMMON_MEMO_TAGS}
                     />
                 )}
             </div>
+
+            {showScanner && (
+                <ReceiptScanner
+                    onExtract={handleScanExtract}
+                    onClose={() => setShowScanner(false)}
+                />
+            )}
 
             {/* Archive Confirmation Modal */}
             {deleteStep === 1 && (

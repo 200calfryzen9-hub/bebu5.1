@@ -438,9 +438,11 @@ export const CowList: React.FC<CowListProps> = ({ cows, onCowClick, settings, on
                   <div className="space-y-4">
                       <div>
                           <label className="block text-sm font-bold text-gray-700 mb-1">個体識別番号 (10桁)</label>
-                          <input 
-                            className="w-full p-2 border border-gray-300 rounded-lg font-mono text-lg" 
+                          <input
+                            className="w-full p-2 border border-gray-300 rounded-lg font-mono text-lg"
                             placeholder="1234567890"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
                             value={newCow.earTag}
                             onChange={(e) => setNewCow({...newCow, earTag: e.target.value})}
                           />
@@ -462,18 +464,20 @@ export const CowList: React.FC<CowListProps> = ({ cows, onCowClick, settings, on
                       <div className="grid grid-cols-2 gap-3">
                           <div>
                               <label className="block text-xs font-bold text-gray-500 mb-1">父牛</label>
-                              <input 
-                                className="w-full p-2 border border-gray-300 rounded-lg text-sm" 
+                              <input
+                                className="w-full p-2 border border-gray-300 rounded-lg text-sm"
                                 placeholder="福之姫"
+                                list="bull-candidates"
                                 value={newCow.fatherName}
                                 onChange={(e) => setNewCow({...newCow, fatherName: e.target.value})}
                               />
                           </div>
                           <div>
                               <label className="block text-xs font-bold text-gray-500 mb-1">母の父</label>
-                              <input 
-                                className="w-full p-2 border border-gray-300 rounded-lg text-sm" 
+                              <input
+                                className="w-full p-2 border border-gray-300 rounded-lg text-sm"
                                 placeholder="安福久"
+                                list="bull-candidates"
                                 value={newCow.motherFatherName}
                                 onChange={(e) => setNewCow({...newCow, motherFatherName: e.target.value})}
                               />

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Note } from '../types';
-import { Send, Trash2, CheckCircle2, Circle, ListTodo } from 'lucide-react';
+import { Send, Trash2, CheckCircle2, Circle, ListTodo, ClipboardList } from 'lucide-react';
 import { formatDateJP } from '../utils/breedingService';
 
 interface MemoLineProps {
@@ -9,12 +9,19 @@ interface MemoLineProps {
     onDeleteNote: (noteId: string) => void;
     onUpdateNote?: (note: Note) => void; // Added for marking todo as done
     hideNotesList?: boolean;
+    quickTags?: string[]; // よく使う症状・メモの候補をポップアップで選べるようにする
 }
 
-export const MemoLine: React.FC<MemoLineProps> = ({ notes = [], onAddNote, onDeleteNote, onUpdateNote, hideNotesList = false }) => {
+export const MemoLine: React.FC<MemoLineProps> = ({ notes = [], onAddNote, onDeleteNote, onUpdateNote, hideNotesList = false, quickTags }) => {
     const [inputText, setInputText] = useState('');
     const [isTodoMode, setIsTodoMode] = useState(false);
+    const [showQuickTags, setShowQuickTags] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
+
+    const handleTagClick = (tag: string) => {
+        setInputText(prev => prev.trim() ? `${prev.trim()} ${tag}` : tag);
+        setShowQuickTags(false);
+    };
 
     const handleSend = () => {
         if (!inputText.trim()) return;
@@ -107,16 +114,42 @@ export const MemoLine: React.FC<MemoLineProps> = ({ notes = [], onAddNote, onDel
                 </div>
             )}
 
+            {/* Quick Tags Popup */}
+            {quickTags && quickTags.length > 0 && showQuickTags && (
+                <div className={`flex flex-wrap gap-2 px-3 py-2 bg-gray-50 ${!hideNotesList ? 'border-t border-gray-200' : 'border-t border-gray-100 rounded-t-lg'}`}>
+                    {quickTags.map(tag => (
+                        <button
+                            key={tag}
+                            type="button"
+                            onClick={() => handleTagClick(tag)}
+                            className="px-3 py-1 bg-white border border-gray-200 hover:bg-wagyu-50 hover:border-wagyu-300 text-gray-700 rounded-full text-xs font-medium transition-colors"
+                        >
+                            {tag}
+                        </button>
+                    ))}
+                </div>
+            )}
+
             {/* Input Area */}
             <div className={`bg-white p-3 flex items-end gap-2 ${!hideNotesList ? 'border-t border-gray-200' : ''}`}>
-                <button 
+                <button
                     onClick={() => setIsTodoMode(!isTodoMode)}
                     className={`p-2.5 rounded-full flex-shrink-0 transition-colors ${isTodoMode ? 'bg-red-100 text-red-600 shadow-inner' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
                     title="ToDoとして記録"
                 >
                     <ListTodo size={20} />
                 </button>
-                <textarea 
+                {quickTags && quickTags.length > 0 && (
+                    <button
+                        type="button"
+                        onClick={() => setShowQuickTags(v => !v)}
+                        className={`p-2.5 rounded-full flex-shrink-0 transition-colors ${showQuickTags ? 'bg-wagyu-100 text-wagyu-700 shadow-inner' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
+                        title="よくある症状・メモから選ぶ"
+                    >
+                        <ClipboardList size={20} />
+                    </button>
+                )}
+                <textarea
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
                     placeholder={isTodoMode ? "ToDoを入力..." : "メモを入力..."}

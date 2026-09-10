@@ -1,9 +1,14 @@
 
-import { Cow, BreedingEvent, EventType, BreedingStatus, DashboardAlert, Settings, CalendarEvent } from '../types';
+import { Cow, BreedingEvent, EventType, BreedingStatus, DashboardAlert, Settings, CalendarEvent, Calf } from '../types';
 import { GESTATION_DAYS, ESTRUS_CYCLE_DAYS } from '../constants';
 
 // Simple date helpers
 export const parseDate = (dateStr: string) => new Date(dateStr);
+
+// 耳標番号の比較用正規化。区切りハイフンや空白を除去し末尾5桁に揃える。
+// (フル番号の先頭は地域/牧場の共通プレフィックスで、個体を区別するのは末尾5桁という慣習に合わせる)
+export const earTagLast5 = (earTag?: string): string =>
+  (earTag || '').replace(/\D/g, '').slice(-5);
 
 // FIX: Use local time for formatting to prevent timezone shifts (e.g. UTC vs JST)
 export const formatDate = (date: Date) => {
@@ -379,4 +384,40 @@ export const resolveFatherName = (calf: { motherId?: string; birthDate?: string;
         if (before) return before.relatedId;
     }
     return insems[0].relatedId;
+};
+
+// --- ホーム画面クイックメモの宛先解析 ---
+// 入力例: "44442 発情" -> 耳標44442の母牛へのメモ
+//         "44442の子 下痢" -> 母牛44442の直近の子牛へのメモ
+export type MemoTarget =
+    | { kind: 'COW'; cow: Cow; text: string }
+    | { kind: 'CALF'; calf: Calf; cow: Cow; text: string }
+    | { kind: 'AMBIGUOUS_COW'; digits: string; matches: Cow[] }
+    | { kind: 'NOT_FOUND_COW'; digits: string }
+    | { kind: 'NOT_FOUND_CALF'; digits: string; cow: Cow }
+    | { kind: 'NO_REFERENCE' };
+
+export const parseMemoTarget = (input: string, cows: Cow[], calves: Calf[]): MemoTarget => {
+    const trimmed = input.trim();
+    const match = trimmed.match(/^(\d{2,})(の子)?[\s　]*([\s\S]*)$/);
+    if (!match) return { kind: 'NO_REFERENCE' };
+
+    const [, digits, calfFlag, rest] = match;
+    const matchedCows = cows.filter(c => !c.isRemoved && c.earTag && c.earTag.endsWith(digits));
+
+    if (matchedCows.length === 0) return { kind: 'NOT_FOUND_COW', digits };
+    if (matchedCows.length > 1) return { kind: 'AMBIGUOUS_COW', digits, matches: matchedCows };
+
+    const cow = matchedCows[0];
+    const text = rest.trim();
+
+    if (calfFlag) {
+        const cowCalves = calves
+            .filter(c => c.motherId === cow.id && !c.isRemoved)
+            .sort((a, b) => (b.birthDate || '').localeCompare(a.birthDate || ''));
+        if (cowCalves.length === 0) return { kind: 'NOT_FOUND_CALF', digits, cow };
+        return { kind: 'CALF', calf: cowCalves[0], cow, text };
+    }
+
+    return { kind: 'COW', cow, text };
 };
